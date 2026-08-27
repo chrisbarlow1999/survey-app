@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '../lib/supabaseClient';
 import { SCREEN_SIZES, MOUNT_TYPES } from '../lib/screenSizes';
 import { BlueprintDiagram } from '../components/BlueprintDiagram';
@@ -27,13 +27,20 @@ function freshLocation() {
 export default function NewSurveyPage() {
   const supabase = createClient();
   const [form, setForm] = useState({
-    engFirst: '', engLast: '', phone: '', date: '', siteLocation: '', address: '', siteContact: '',
+    engFirst: '', engLast: '', phone: '', date: '', siteLocation: '', address: '', siteContact: '', clientId: '',
     engDays: '', engCount: '', additionalInfo: '',
   });
+  const [clients, setClients] = useState([]);
   const [locations, setLocations] = useState([freshLocation()]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    supabase.from('clients').select('id, name').order('name').then(({ data }) => {
+      if (data) setClients(data);
+    });
+  }, []);
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -57,8 +64,8 @@ export default function NewSurveyPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    if (!form.engFirst || !form.engLast || !form.phone || !form.date || !form.siteLocation) {
-      setError('Please complete engineer details, phone, date and site location.');
+    if (!form.engFirst || !form.engLast || !form.phone || !form.date || !form.siteLocation || !form.clientId) {
+      setError('Please complete engineer details, phone, date, site name and client.');
       return;
     }
     setSubmitting(true);
@@ -94,6 +101,7 @@ export default function NewSurveyPage() {
         phone: form.phone,
         survey_date: form.date,
         site_location: form.siteLocation,
+        client_id: form.clientId,
         address: form.address,
         site_contact: form.siteContact,
         locations: uploadedLocations,
@@ -136,6 +144,13 @@ export default function NewSurveyPage() {
           </div>
           <div className="field-row">
             <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Name</label><input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} /></div>
+            <div className="field" style={{ flex: 1, minWidth: 200 }}>
+              <label className="req">Client</label>
+              <select value={form.clientId} onChange={(e) => setField('clientId', e.target.value)}>
+                <option value="">Please select</option>
+                {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
           </div>
           <div className="field-row">
             <div className="field" style={{ flex: 3, minWidth: 240 }}><label>Address</label><input value={form.address} onChange={(e) => setField('address', e.target.value)} /></div>

@@ -30,7 +30,7 @@ export default function LoginPage() {
     <main>
       <div className="panel" style={{ maxWidth: 380, margin: '40px auto' }}>
         <h2>Dashboard Sign In</h2>
-        <p className="hint">Accounts are created by your admin — there's no public sign-up.</p>
+        <p className="hint">Don't have an account? <a href="/register" style={{ color: 'var(--accent-cyan)' }}>Register with your @linney.com email</a>.</p>
         <form onSubmit={handleSubmit}>
           <div className="field-row">
             <div className="field" style={{ flex: '1 1 100%' }}>

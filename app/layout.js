@@ -14,6 +14,7 @@ export default function RootLayout({ children }) {
           <nav>
             <a href="/">New Survey</a>
             <a href="/dashboard">Dashboard</a>
+            <a href="/admin">Admin</a>
           </nav>
         </header>
         <div className="wrap">{children}</div>

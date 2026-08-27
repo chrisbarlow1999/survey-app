@@ -24,7 +24,8 @@ export async function proxy(request) {
 
   const { data: { session } } = await supabase.auth.getSession();
 
-  if (request.nextUrl.pathname.startsWith('/dashboard') && !session) {
+  const needsSession = request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/admin');
+  if (needsSession && !session) {
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
   }
@@ -33,5 +34,5 @@ export async function proxy(request) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*'],
+  matcher: ['/dashboard/:path*', '/admin/:path*'],
 };

@@ -1,8 +1,10 @@
 # Site Survey — Digital Signage
 
-Two-part app:
+Three-part app:
 - `/` — public survey form. No account needed, anyone with the link can submit.
 - `/dashboard` — reports view. Requires a logged-in account.
+- `/admin` — user permissions. Requires a super admin account; the "Admin" nav link
+  only shows up for super admins.
 
 ## 1. One-time Supabase setup
 
@@ -16,6 +18,33 @@ Two-part app:
 4. Also run `supabase/002_add_delete_policy.sql` in the SQL Editor — this enables the
    "Delete Survey" button in the dashboard.
 5. Also run `supabase/003_add_address_column.sql` — this adds the Address field.
+6. Also run `supabase/004_registration_and_permissions.sql` — this adds:
+   - Public self-registration restricted to @linney.com emails (applies even to
+     accounts you add manually going forward)
+   - A `clients` table and per-account permission groups
+7. **Add your clients**: Supabase → Table Editor → `clients` → insert a row per
+   client (just a name — e.g. "Manchester United", "Everton FC").
+8. **Make your own account a super admin** (do this once, right after running the
+   migration): Supabase → Authentication → Users → copy your user's ID, then in the
+   SQL Editor run:
+   ```sql
+   update profiles set role = 'super_admin' where id = 'paste-your-id-here';
+   ```
+9. **Grant a non-admin account access to a client**: Table Editor → `profile_clients`
+   → insert a row with that account's `profile_id` (from the `profiles` table) and
+   the `client_id` of the client they should see. An account with no rows here (and
+   not a super admin) sees an empty dashboard.
+10. **Enable email confirmations**: Supabase → Authentication → Providers → Email,
+    make sure "Confirm email" is switched on (it's on by default for new projects).
+11. **Set your redirect URLs**: Supabase → Authentication → URL Configuration — add
+    both `http://localhost:3000/login` and your real Vercel URL (e.g.
+    `https://your-app.vercel.app/login`) under Redirect URLs, so confirmation email
+    links work in both places.
+12. Also run `supabase/005_admin_user_management.sql` — this adds the `/admin` page:
+    it mirrors each account's email onto `profiles` (needed to show a readable user
+    list), and lets super admins view/edit every account's role and client access
+    from inside the app instead of Supabase's Table Editor. After running it, steps
+    7 and 9 above can be done from `/admin` instead of by hand.
 
 ## 2. Local setup
 

@@ -18,7 +18,7 @@ export default async function ReportPage({ params }) {
   const supabase = await createClient();
   const { data: survey, error } = await supabase
     .from('surveys')
-    .select('*')
+    .select('*, clients(name)')
     .eq('id', id)
     .single();
 
@@ -54,7 +54,7 @@ export default async function ReportPage({ params }) {
 
       <div className="panel" style={{ marginTop: 14 }}>
         <div className="print-only print-title">Site Survey Report</div>
-        <h2 style={{ fontSize: 20 }}>{survey.site_location}</h2>
+        <h2 style={{ fontSize: 20 }}>{survey.site_location}{survey.clients?.name ? <span className="client-badge" style={{ marginLeft: 10, verticalAlign: 'middle' }}>{survey.clients.name}</span> : null}</h2>
         <div className="kv-grid" style={{ marginTop: 12 }}>
           <div className="kv"><div className="k">Engineer</div><div className="v">{survey.engineer_first} {survey.engineer_last}</div></div>
           <div className="kv"><div className="k">Phone</div><div className="v">{survey.phone}</div></div>
