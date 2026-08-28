@@ -55,6 +55,7 @@ export default async function ReportPage({ params }) {
     <main>
       <a className="back-link" href="/dashboard">&larr; Back to Dashboard</a>
       <div className="toolbar no-print">
+        <a className="btn btn-ghost" href={`/dashboard/${survey.id}/edit`}>Edit Survey</a>
         <PrintButton />
         <DeleteSurveyButton
           surveyId={survey.id}

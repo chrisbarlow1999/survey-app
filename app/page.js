@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '../lib/supabaseClient';
-import { SCREEN_SIZES, MOUNT_TYPES } from '../lib/screenSizes';
-import { BlueprintDiagram } from '../components/BlueprintDiagram';
-import { PhotoWithOverlay, DEFAULT_OVERLAY } from '../components/PhotoWithOverlay';
+import { LocationCard } from '../components/LocationCard';
+import { DEFAULT_OVERLAY } from '../components/PhotoWithOverlay';
 
 function freshLocation() {
   return {
@@ -185,125 +184,17 @@ export default function NewSurveyPage() {
           <h2>Screen Locations</h2>
           <p className="hint">Add one entry per proposed screen.</p>
           {locations.map((loc, i) => (
-            <div className="loc-card" key={loc.id}>
-              <div className="loc-head">
-                <div className="loc-num">Screen Location #{i + 1}</div>
-                {i > 0 && <button type="button" className="remove" onClick={() => removeLocation(loc.id)}>Remove</button>}
-              </div>
-              <div className="loc-body">
-              <div>
-              <div className="field-row">
-                <div className="field" style={{ flex: '1 1 100%' }}>
-                  <label>Photo of Area</label>
-                  <input type="file" accept="image/*" onChange={(e) => handlePhoto(loc.id, e.target.files[0])} />
-                  {loc.photoPreview && (
-                    <>
-                      <PhotoWithOverlay
-                        photoSrc={loc.photoPreview}
-                        overlay={loc.screenOverlay}
-                        onOverlayChange={(ov) => setLocField(loc.id, 'screenOverlay', ov)}
-                      />
-                      <div className="overlay-toolbar">
-                        {loc.screenOverlay ? (
-                          <button type="button" onClick={() => setLocField(loc.id, 'screenOverlay', null)}>Remove screen marker</button>
-                        ) : (
-                          <button type="button" onClick={() => setLocField(loc.id, 'screenOverlay', DEFAULT_OVERLAY)}>Add screen marker</button>
-                        )}
-                      </div>
-                      <p className="hint" style={{ margin: '6px 0 0' }}>Drag the amber box onto the photo to mark where the screen will go. Drag the corner handle to resize it.</p>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="field-row">
-                <div className="field">
-                  <label>Screen Size</label>
-                  <select value={loc.sizeKey} onChange={(e) => setLocField(loc.id, 'sizeKey', e.target.value)}>
-                    <option value="">Please select</option>
-                    {Object.entries(SCREEN_SIZES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
-                <div className="field">
-                  <label>Orientation</label>
-                  <div className="segmented">
-                    <button type="button" className={loc.orientation === 'Landscape' ? 'on' : ''} onClick={() => setLocField(loc.id, 'orientation', 'Landscape')}>Landscape</button>
-                    <button type="button" className={loc.orientation === 'Portrait' ? 'on' : ''} onClick={() => setLocField(loc.id, 'orientation', 'Portrait')}>Portrait</button>
-                  </div>
-                </div>
-              </div>
-              {loc.sizeKey === 'other' && (
-                <div className="field-row">
-                  <div className="field"><label>Custom Width (mm)</label><input type="number" value={loc.customW} onChange={(e) => setLocField(loc.id, 'customW', e.target.value)} /></div>
-                  <div className="field"><label>Custom Height (mm)</label><input type="number" value={loc.customH} onChange={(e) => setLocField(loc.id, 'customH', e.target.value)} /></div>
-                </div>
-              )}
-              <div className="field-row">
-                <div className="field">
-                  <label>Mount Type</label>
-                  <select value={loc.mountType} onChange={(e) => setLocField(loc.id, 'mountType', e.target.value)}>
-                    <option value="">Please select</option>
-                    {MOUNT_TYPES.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-                {loc.mountType === 'Other' && (
-                  <div className="field">
-                    <label>Specify Mount Type</label>
-                    <input value={loc.mountTypeOther} onChange={(e) => setLocField(loc.id, 'mountTypeOther', e.target.value)} placeholder="e.g. Freestanding kiosk" />
-                  </div>
-                )}
-              </div>
-              <div className="field-row">
-                <div className="field" style={{ flex: '1 1 100%' }}>
-                  <label>Measurements of Area for Screen</label>
-                  <input value={loc.measurements} onChange={(e) => setLocField(loc.id, 'measurements', e.target.value)} />
-                </div>
-              </div>
-              <div className="field-row">
-                <div className="field">
-                  <label>Power Available?</label>
-                  <div className="segmented">
-                    <button type="button" className={loc.power === 'Yes' ? 'on' : ''} onClick={() => setLocField(loc.id, 'power', 'Yes')}>Yes</button>
-                    <button type="button" className={loc.power === 'No' ? 'on warn' : ''} onClick={() => setLocField(loc.id, 'power', 'No')}>No</button>
-                  </div>
-                </div>
-                <div className="field">
-                  <label>Data Port / 4G Available?</label>
-                  <div className="segmented">
-                    <button type="button" className={loc.dataPort === 'Yes' ? 'on' : ''} onClick={() => setLocField(loc.id, 'dataPort', 'Yes')}>Yes</button>
-                    <button type="button" className={loc.dataPort === 'No' ? 'on warn' : ''} onClick={() => setLocField(loc.id, 'dataPort', 'No')}>No</button>
-                  </div>
-                </div>
-              </div>
-              <div className="field-row">
-                <div className="field" style={{ flex: '1 1 100%' }}>
-                  <label>Notes (wall details, additional support needed, etc.)</label>
-                  <textarea value={loc.notes} onChange={(e) => setLocField(loc.id, 'notes', e.target.value)} />
-                </div>
-              </div>
-              <div className="field-row">
-                <div className="field" style={{ flex: '1 1 100%' }}>
-                  <label>Additional Photos (power, network, etc.)</label>
-                  <input type="file" accept="image/*" multiple onChange={(e) => { handleAdditionalPhotos(loc.id, e.target.files); e.target.value = ''; }} />
-                  {loc.additionalPhotos.length > 0 && (
-                    <div className="additional-photos-grid">
-                      {loc.additionalPhotos.map((p) => (
-                        <div className="additional-photo-thumb" key={p.key}>
-                          <img src={p.preview} alt="Additional" />
-                          <button type="button" onClick={() => removeAdditionalPhoto(loc.id, p.key)}>&times;</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              </div>
-              <BlueprintDiagram
-                wmm={loc.sizeKey === 'other' ? (Number(loc.customW) || null) : SCREEN_SIZES[loc.sizeKey]?.wmm}
-                hmm={loc.sizeKey === 'other' ? (Number(loc.customH) || null) : SCREEN_SIZES[loc.sizeKey]?.hmm}
-                orientation={loc.orientation}
-              />
-              </div>
-            </div>
+            <LocationCard
+              key={loc.id}
+              loc={loc}
+              index={i}
+              showRemove={i > 0}
+              onRemove={() => removeLocation(loc.id)}
+              onChange={(key, value) => setLocField(loc.id, key, value)}
+              onPhotoChange={(file) => handlePhoto(loc.id, file)}
+              onAdditionalPhotosAdd={(files) => handleAdditionalPhotos(loc.id, files)}
+              onAdditionalPhotoRemove={(key) => removeAdditionalPhoto(loc.id, key)}
+            />
           ))}
           <button type="button" className="btn-add" onClick={addLocation}>+ Add Screen Location</button>
         </div>

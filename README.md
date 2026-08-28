@@ -48,6 +48,10 @@ Three-part app:
 13. Also run `supabase/006_admin_client_management.sql` — this lets super admins
     add/rename/delete clients from `/admin` too, so step 7 above no longer needs
     Table Editor either.
+14. Also run `supabase/007_edit_survey_policy.sql` — this adds an "Edit Survey"
+    button on the report page, using the same client-permission rule as viewing
+    and deleting. Engineers still have no accounts, so there's no self-service
+    edit — corrections go through whichever PM has access to that survey.
 
 ## 2. Local setup
 
