@@ -98,6 +98,12 @@ export default async function ReportPage({ params }) {
                   <div className="kv"><div className="k">Data / 4G Available</div><div className="v">{pill(loc.data_port)}</div></div>
                 </div>
                 <div className="kv"><div className="k">Measurements</div><div className="v">{loc.measurements || '—'}</div></div>
+                {loc.notes && (
+                  <div className="kv" style={{ borderColor: 'var(--accent-cyan)' }}>
+                    <div className="k">Notes</div>
+                    <div className="v">{loc.notes}</div>
+                  </div>
+                )}
                 {loc.photoUrl && (
                   <PhotoWithOverlay photoSrc={loc.photoUrl} overlay={loc.screen_overlay} readOnly />
                 )}

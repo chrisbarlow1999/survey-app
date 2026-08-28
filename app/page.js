@@ -21,6 +21,7 @@ function freshLocation() {
     measurements: '',
     power: '',
     dataPort: '',
+    notes: '',
   };
 }
 
@@ -92,6 +93,7 @@ export default function NewSurveyPage() {
           measurements: loc.measurements,
           power: loc.power,
           data_port: loc.dataPort,
+          notes: loc.notes,
         });
       }
 
@@ -249,6 +251,12 @@ export default function NewSurveyPage() {
                     <button type="button" className={loc.dataPort === 'Yes' ? 'on' : ''} onClick={() => setLocField(loc.id, 'dataPort', 'Yes')}>Yes</button>
                     <button type="button" className={loc.dataPort === 'No' ? 'on warn' : ''} onClick={() => setLocField(loc.id, 'dataPort', 'No')}>No</button>
                   </div>
+                </div>
+              </div>
+              <div className="field-row">
+                <div className="field" style={{ flex: '1 1 100%' }}>
+                  <label>Notes (wall details, additional support needed, etc.)</label>
+                  <textarea value={loc.notes} onChange={(e) => setLocField(loc.id, 'notes', e.target.value)} />
                 </div>
               </div>
               </div>
