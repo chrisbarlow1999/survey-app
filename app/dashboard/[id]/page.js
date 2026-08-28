@@ -40,7 +40,14 @@ export default async function ReportPage({ params }) {
           .createSignedUrl(loc.photo_path, 60 * 60); // 1 hour
         photoUrl = data?.signedUrl || null;
       }
-      return { ...loc, photoUrl };
+      const additionalPhotoUrls = (
+        await Promise.all(
+          (loc.additional_photos || []).map((path) =>
+            supabase.storage.from('survey-photos').createSignedUrl(path, 60 * 60)
+          )
+        )
+      ).map((r) => r.data?.signedUrl).filter(Boolean);
+      return { ...loc, photoUrl, additionalPhotoUrls };
     })
   );
 
@@ -49,7 +56,13 @@ export default async function ReportPage({ params }) {
       <a className="back-link" href="/dashboard">&larr; Back to Dashboard</a>
       <div className="toolbar no-print">
         <PrintButton />
-        <DeleteSurveyButton surveyId={survey.id} photoPaths={(survey.locations || []).map(l => l.photo_path).filter(Boolean)} />
+        <DeleteSurveyButton
+          surveyId={survey.id}
+          photoPaths={[
+            ...(survey.locations || []).map((l) => l.photo_path).filter(Boolean),
+            ...(survey.locations || []).flatMap((l) => l.additional_photos || []),
+          ]}
+        />
       </div>
 
       <div className="panel" style={{ marginTop: 14 }}>
@@ -106,6 +119,18 @@ export default async function ReportPage({ params }) {
                 )}
                 {loc.photoUrl && (
                   <PhotoWithOverlay photoSrc={loc.photoUrl} overlay={loc.screen_overlay} readOnly />
+                )}
+                {loc.additionalPhotoUrls && loc.additionalPhotoUrls.length > 0 && (
+                  <>
+                    <div className="k" style={{ marginTop: 14, marginBottom: 6 }}>Additional Photos</div>
+                    <div className="additional-photos-grid">
+                      {loc.additionalPhotoUrls.map((url, idx) => (
+                        <a href={url} target="_blank" rel="noreferrer" key={idx} className="additional-photo-thumb static">
+                          <img src={url} alt={`Additional photo ${idx + 1}`} />
+                        </a>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
               <BlueprintDiagram wmm={wmm} hmm={hmm} orientation={loc.orientation} />

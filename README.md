@@ -43,8 +43,11 @@ Three-part app:
 12. Also run `supabase/005_admin_user_management.sql` — this adds the `/admin` page:
     it mirrors each account's email onto `profiles` (needed to show a readable user
     list), and lets super admins view/edit every account's role and client access
-    from inside the app instead of Supabase's Table Editor. After running it, steps
-    7 and 9 above can be done from `/admin` instead of by hand.
+    from inside the app instead of Supabase's Table Editor. After running it, step
+    9 above can be done from `/admin` instead of by hand.
+13. Also run `supabase/006_admin_client_management.sql` — this lets super admins
+    add/rename/delete clients from `/admin` too, so step 7 above no longer needs
+    Table Editor either.
 
 ## 2. Local setup
 

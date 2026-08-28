@@ -1,5 +1,6 @@
 import { createClient } from '../../lib/supabaseServer';
 import { UserPermissionsPanel } from '../../components/UserPermissionsPanel';
+import { ClientManagementPanel } from '../../components/ClientManagementPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,15 @@ export default async function AdminPage() {
 
   return (
     <main>
+      <div className="panel" style={{ padding: '12px 16px' }}>
+        <h2>Clients</h2>
+        <p className="hint">
+          Clients show up on the survey form's Client dropdown, and can be granted to accounts below.
+          After adding one here, refresh the page to see it in the User Permissions list.
+        </p>
+        <ClientManagementPanel initialClients={clients || []} />
+      </div>
+
       <div className="panel" style={{ padding: '12px 16px' }}>
         <h2>User Permissions</h2>
         <p className="hint">

@@ -22,6 +22,7 @@ function freshLocation() {
     power: '',
     dataPort: '',
     notes: '',
+    additionalPhotos: [],
   };
 }
 
@@ -61,6 +62,18 @@ export default function NewSurveyPage() {
     setLocField(id, 'photoPreview', URL.createObjectURL(file));
     setLocField(id, 'screenOverlay', DEFAULT_OVERLAY);
   }
+  function handleAdditionalPhotos(id, files) {
+    if (!files || !files.length) return;
+    const added = Array.from(files).map((file) => ({
+      key: 'ap_' + Math.random().toString(36).slice(2, 9),
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+    setLocations((locs) => locs.map((l) => (l.id === id ? { ...l, additionalPhotos: [...l.additionalPhotos, ...added] } : l)));
+  }
+  function removeAdditionalPhoto(id, key) {
+    setLocations((locs) => locs.map((l) => (l.id === id ? { ...l, additionalPhotos: l.additionalPhotos.filter((p) => p.key !== key) } : l)));
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -81,9 +94,17 @@ export default function NewSurveyPage() {
           if (upErr) throw upErr;
           photoPath = path;
         }
+        const additionalPhotoPaths = [];
+        for (const ap of loc.additionalPhotos) {
+          const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${ap.file.name}`;
+          const { error: upErr } = await supabase.storage.from('survey-photos').upload(path, ap.file);
+          if (upErr) throw upErr;
+          additionalPhotoPaths.push(path);
+        }
         uploadedLocations.push({
           photo_path: photoPath,
           screen_overlay: loc.photoFile ? loc.screenOverlay : null,
+          additional_photos: additionalPhotoPaths,
           screen_size: loc.sizeKey,
           custom_w: loc.sizeKey === 'other' ? loc.customW : null,
           custom_h: loc.sizeKey === 'other' ? loc.customH : null,
@@ -257,6 +278,22 @@ export default function NewSurveyPage() {
                 <div className="field" style={{ flex: '1 1 100%' }}>
                   <label>Notes (wall details, additional support needed, etc.)</label>
                   <textarea value={loc.notes} onChange={(e) => setLocField(loc.id, 'notes', e.target.value)} />
+                </div>
+              </div>
+              <div className="field-row">
+                <div className="field" style={{ flex: '1 1 100%' }}>
+                  <label>Additional Photos (power, network, etc.)</label>
+                  <input type="file" accept="image/*" multiple onChange={(e) => { handleAdditionalPhotos(loc.id, e.target.files); e.target.value = ''; }} />
+                  {loc.additionalPhotos.length > 0 && (
+                    <div className="additional-photos-grid">
+                      {loc.additionalPhotos.map((p) => (
+                        <div className="additional-photo-thumb" key={p.key}>
+                          <img src={p.preview} alt="Additional" />
+                          <button type="button" onClick={() => removeAdditionalPhoto(loc.id, p.key)}>&times;</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               </div>
