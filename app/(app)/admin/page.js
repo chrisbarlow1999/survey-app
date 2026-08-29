@@ -1,6 +1,6 @@
-import { createClient } from '../../lib/supabaseServer';
-import { UserPermissionsPanel } from '../../components/UserPermissionsPanel';
-import { ClientManagementPanel } from '../../components/ClientManagementPanel';
+import { createClient } from '../../../lib/supabaseServer';
+import { UserPermissionsPanel } from '../../../components/UserPermissionsPanel';
+import { ClientManagementPanel } from '../../../components/ClientManagementPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +24,7 @@ export default async function AdminPage() {
 
   const [{ data: profiles, error: profilesError }, { data: clients }, { data: grants }] = await Promise.all([
     supabase.from('profiles').select('id, email, full_name, role, created_at').order('created_at', { ascending: true }),
-    supabase.from('clients').select('id, name').order('name', { ascending: true }),
+    supabase.from('clients').select('id, name, notification_email').order('name', { ascending: true }),
     supabase.from('profile_clients').select('profile_id, client_id'),
   ]);
 
@@ -34,6 +34,7 @@ export default async function AdminPage() {
         <h2>Clients</h2>
         <p className="hint">
           Clients show up on the survey form's Client dropdown, and can be granted to accounts below.
+          Set a notification inbox to email that team whenever a survey comes in for them.
           After adding one here, refresh the page to see it in the User Permissions list.
         </p>
         <ClientManagementPanel initialClients={clients || []} />

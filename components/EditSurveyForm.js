@@ -53,7 +53,7 @@ function freshLocation() {
   };
 }
 
-export function EditSurveyForm({ survey, locationsWithUrls, clients }) {
+export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName }) {
   const supabase = createClient();
   const router = useRouter();
 
@@ -155,6 +155,7 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients }) {
         });
       }
 
+      const newHistoryEntry = { name: editorName, edited_at: new Date().toISOString() };
       const { error: updateErr } = await supabase.from('surveys').update({
         engineer_first: form.engFirst,
         engineer_last: form.engLast,
@@ -168,6 +169,7 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients }) {
         engineer_days: form.engDays || null,
         engineer_count: form.engCount || null,
         additional_info: form.additionalInfo,
+        edit_history: [...(survey.edit_history || []), newHistoryEntry],
       }).eq('id', survey.id);
       if (updateErr) throw updateErr;
 

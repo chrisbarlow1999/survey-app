@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '../../lib/supabaseClient';
+import { createClient } from '../../../lib/supabaseClient';
 
 export default function LoginPage() {
   const supabase = createClient();

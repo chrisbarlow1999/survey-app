@@ -1,9 +1,9 @@
-import { createClient } from '../../../lib/supabaseServer';
-import { SCREEN_SIZES } from '../../../lib/screenSizes';
-import { BlueprintDiagram } from '../../../components/BlueprintDiagram';
-import { PhotoWithOverlay } from '../../../components/PhotoWithOverlay';
-import { DeleteSurveyButton } from '../../../components/DeleteSurveyButton';
-import { PrintButton } from '../../../components/PrintButton';
+import { createClient } from '../../../../lib/supabaseServer';
+import { SCREEN_SIZES } from '../../../../lib/screenSizes';
+import { BlueprintDiagram } from '../../../../components/BlueprintDiagram';
+import { PhotoWithOverlay } from '../../../../components/PhotoWithOverlay';
+import { DeleteSurveyButton } from '../../../../components/DeleteSurveyButton';
+import { PrintButton } from '../../../../components/PrintButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +82,16 @@ export default async function ReportPage({ params }) {
           <div className="kv" style={{ borderColor: 'var(--accent-cyan)' }}>
             <div className="k">Additional Information</div>
             <div className="v">{survey.additional_info}</div>
+          </div>
+        )}
+        {survey.edit_history && survey.edit_history.length > 0 && (
+          <div className="edit-history no-print">
+            <div className="k">Edit History</div>
+            <ul>
+              {[...survey.edit_history].reverse().map((e, i) => (
+                <li key={i}>{e.name} — {new Date(e.edited_at).toLocaleString()}</li>
+              ))}
+            </ul>
           </div>
         )}
       </div>

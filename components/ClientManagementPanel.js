@@ -11,6 +11,7 @@ export function ClientManagementPanel({ initialClients }) {
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editingName, setEditingName] = useState('');
+  const [editingEmail, setEditingEmail] = useState('');
   const [busyId, setBusyId] = useState(null);
 
   function sorted(list) {
@@ -36,19 +37,21 @@ export function ClientManagementPanel({ initialClients }) {
   function startEdit(c) {
     setEditingId(c.id);
     setEditingName(c.name);
+    setEditingEmail(c.notification_email || '');
   }
 
-  async function handleRename(id) {
+  async function handleSaveEdit(id) {
     const name = editingName.trim();
     if (!name) return;
+    const notificationEmail = editingEmail.trim() || null;
     setBusyId(id);
     const prev = clients;
-    setClients((c) => sorted(c.map((x) => (x.id === id ? { ...x, name } : x))));
-    const { error: updErr } = await supabase.from('clients').update({ name }).eq('id', id);
+    setClients((c) => sorted(c.map((x) => (x.id === id ? { ...x, name, notification_email: notificationEmail } : x))));
+    const { error: updErr } = await supabase.from('clients').update({ name, notification_email: notificationEmail }).eq('id', id);
     setBusyId(null);
     setEditingId(null);
     if (updErr) {
-      alert(updErr.code === '23505' ? 'A client with that name already exists.' : 'Could not rename client.');
+      alert(updErr.code === '23505' ? 'A client with that name already exists.' : 'Could not save changes.');
       setClients(prev);
     }
   }
@@ -87,14 +90,20 @@ export function ClientManagementPanel({ initialClients }) {
             <div className="client-row" key={c.id}>
               {editingId === c.id ? (
                 <>
-                  <input value={editingName} onChange={(e) => setEditingName(e.target.value)} style={{ flex: 1 }} autoFocus />
-                  <button className="btn btn-ghost" type="button" onClick={() => handleRename(c.id)} disabled={busyId === c.id}>Save</button>
+                  <div style={{ flex: 1, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <input value={editingName} onChange={(e) => setEditingName(e.target.value)} style={{ flex: '1 1 160px' }} autoFocus placeholder="Client name" />
+                    <input type="email" value={editingEmail} onChange={(e) => setEditingEmail(e.target.value)} style={{ flex: '1 1 220px' }} placeholder="Notification inbox (optional)" />
+                  </div>
+                  <button className="btn btn-ghost" type="button" onClick={() => handleSaveEdit(c.id)} disabled={busyId === c.id}>Save</button>
                   <button className="btn btn-ghost" type="button" onClick={() => setEditingId(null)}>Cancel</button>
                 </>
               ) : (
                 <>
-                  <span className="client-row-name">{c.name}</span>
-                  <button className="btn btn-ghost" type="button" onClick={() => startEdit(c)} disabled={busyId === c.id}>Rename</button>
+                  <div style={{ flex: 1 }}>
+                    <span className="client-row-name">{c.name}</span>
+                    <div className="client-row-email">{c.notification_email || 'No notification inbox set'}</div>
+                  </div>
+                  <button className="btn btn-ghost" type="button" onClick={() => startEdit(c)} disabled={busyId === c.id}>Edit</button>
                   <button
                     className="btn btn-ghost"
                     type="button"

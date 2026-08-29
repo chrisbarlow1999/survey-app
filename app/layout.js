@@ -8,17 +8,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>
-        <header className="titleblock">
-          <a href="/" className="brand"><span className="mark"></span>Site Survey — Digital Signage</a>
-          <nav>
-            <a href="/">New Survey</a>
-            <a href="/dashboard">Dashboard</a>
-            <a href="/admin">Admin</a>
-          </nav>
-        </header>
-        <div className="wrap">{children}</div>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

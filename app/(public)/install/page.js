@@ -1,35 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '../lib/supabaseClient';
-import { LocationCard } from '../components/LocationCard';
-import { DEFAULT_OVERLAY } from '../components/PhotoWithOverlay';
+import { createClient } from '../../../lib/supabaseClient';
+import { InstallLocationCard } from '../../../components/InstallLocationCard';
 
 function freshLocation() {
   return {
     id: 'loc_' + Math.random().toString(36).slice(2, 9),
+    label: '',
     photoFile: null,
     photoPreview: null,
-    screenOverlay: null,
-    sizeKey: '',
-    customW: '',
-    customH: '',
-    orientation: 'Landscape',
-    mountType: '',
-    mountTypeOther: '',
-    measurements: '',
-    power: '',
-    dataPort: '',
+    installed: '',
     notes: '',
-    additionalPhotos: [],
   };
 }
 
-export default function NewSurveyPage() {
+export default function NewInstallationPage() {
   const supabase = createClient();
   const [form, setForm] = useState({
     engFirst: '', engLast: '', phone: '', date: '', siteLocation: '', address: '', siteContact: '', clientId: '',
-    engDays: '', engCount: '', additionalInfo: '',
+    additionalInfo: '',
   });
   const [clients, setClients] = useState([]);
   const [locations, setLocations] = useState([freshLocation()]);
@@ -59,19 +49,6 @@ export default function NewSurveyPage() {
     if (!file) return;
     setLocField(id, 'photoFile', file);
     setLocField(id, 'photoPreview', URL.createObjectURL(file));
-    setLocField(id, 'screenOverlay', DEFAULT_OVERLAY);
-  }
-  function handleAdditionalPhotos(id, files) {
-    if (!files || !files.length) return;
-    const added = Array.from(files).map((file) => ({
-      key: 'ap_' + Math.random().toString(36).slice(2, 9),
-      file,
-      preview: URL.createObjectURL(file),
-    }));
-    setLocations((locs) => locs.map((l) => (l.id === id ? { ...l, additionalPhotos: [...l.additionalPhotos, ...added] } : l)));
-  }
-  function removeAdditionalPhoto(id, key) {
-    setLocations((locs) => locs.map((l) => (l.id === id ? { ...l, additionalPhotos: l.additionalPhotos.filter((p) => p.key !== key) } : l)));
   }
 
   async function handleSubmit(e) {
@@ -83,7 +60,6 @@ export default function NewSurveyPage() {
     }
     setSubmitting(true);
     try {
-      // Upload any photos first, one per location, into the survey-photos bucket.
       const uploadedLocations = [];
       for (const loc of locations) {
         let photoPath = null;
@@ -93,50 +69,40 @@ export default function NewSurveyPage() {
           if (upErr) throw upErr;
           photoPath = path;
         }
-        const additionalPhotoPaths = [];
-        for (const ap of loc.additionalPhotos) {
-          const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${ap.file.name}`;
-          const { error: upErr } = await supabase.storage.from('survey-photos').upload(path, ap.file);
-          if (upErr) throw upErr;
-          additionalPhotoPaths.push(path);
-        }
         uploadedLocations.push({
+          label: loc.label,
           photo_path: photoPath,
-          screen_overlay: loc.photoFile ? loc.screenOverlay : null,
-          additional_photos: additionalPhotoPaths,
-          screen_size: loc.sizeKey,
-          custom_w: loc.sizeKey === 'other' ? loc.customW : null,
-          custom_h: loc.sizeKey === 'other' ? loc.customH : null,
-          orientation: loc.orientation,
-          mount_type: loc.mountType,
-          mount_type_other: loc.mountType === 'Other' ? loc.mountTypeOther : null,
-          measurements: loc.measurements,
-          power: loc.power,
-          data_port: loc.dataPort,
+          installed: loc.installed,
           notes: loc.notes,
         });
       }
 
-      const { error: insertErr } = await supabase.from('surveys').insert({
+      const installationId = crypto.randomUUID();
+      const { error: insertErr } = await supabase.from('installations').insert({
+        id: installationId,
         engineer_first: form.engFirst,
         engineer_last: form.engLast,
         phone: form.phone,
-        survey_date: form.date,
+        install_date: form.date,
         site_location: form.siteLocation,
         client_id: form.clientId,
         address: form.address,
         site_contact: form.siteContact,
         locations: uploadedLocations,
-        engineer_days: form.engDays || null,
-        engineer_count: form.engCount || null,
         additional_info: form.additionalInfo,
       });
       if (insertErr) throw insertErr;
 
+      fetch('/api/notify-installation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ installationId }),
+      }).catch(() => {});
+
       setDone(true);
     } catch (err) {
       console.error(err);
-      setError('Something went wrong submitting the survey. Please try again.');
+      setError('Something went wrong submitting the install confirmation. Please try again.');
     }
     setSubmitting(false);
   }
@@ -145,9 +111,9 @@ export default function NewSurveyPage() {
     return (
       <main>
         <div className="panel success-panel">
-          <h2>Survey submitted</h2>
+          <h2>Install confirmation submitted</h2>
           <p className="hint">Thanks — this has been sent through to the project team.</p>
-          <button className="btn btn-ghost" onClick={() => window.location.reload()}>Submit another survey</button>
+          <button className="btn btn-ghost" onClick={() => window.location.reload()}>Submit another</button>
         </div>
       </main>
     );
@@ -162,7 +128,7 @@ export default function NewSurveyPage() {
             <div className="field"><label className="req">First Name</label><input value={form.engFirst} onChange={(e) => setField('engFirst', e.target.value)} /></div>
             <div className="field"><label className="req">Last Name</label><input value={form.engLast} onChange={(e) => setField('engLast', e.target.value)} /></div>
             <div className="field"><label className="req">Phone Number</label><input type="tel" value={form.phone} onChange={(e) => setField('phone', e.target.value)} /></div>
-            <div className="field"><label className="req">Date of Survey</label><input type="date" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
+            <div className="field"><label className="req">Install Date</label><input type="date" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
           </div>
           <div className="field-row">
             <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Name</label><input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} /></div>
@@ -176,15 +142,15 @@ export default function NewSurveyPage() {
           </div>
           <div className="field-row">
             <div className="field" style={{ flex: 3, minWidth: 240 }}><label>Address</label><input value={form.address} onChange={(e) => setField('address', e.target.value)} /></div>
-            <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Contact Info</label><input value={form.siteContact} onChange={(e) => setField('siteContact', e.target.value)} /></div>
+            <div className="field" style={{ flex: 2, minWidth: 240 }}><label>Site Contact Info</label><input value={form.siteContact} onChange={(e) => setField('siteContact', e.target.value)} /></div>
           </div>
         </div>
 
         <div className="panel">
-          <h2>Screen Locations</h2>
-          <p className="hint">Add one entry per proposed screen.</p>
+          <h2>Installed Screens</h2>
+          <p className="hint">Add one entry per screen installed, with a proof photo.</p>
           {locations.map((loc, i) => (
-            <LocationCard
+            <InstallLocationCard
               key={loc.id}
               loc={loc}
               index={i}
@@ -192,19 +158,9 @@ export default function NewSurveyPage() {
               onRemove={() => removeLocation(loc.id)}
               onChange={(key, value) => setLocField(loc.id, key, value)}
               onPhotoChange={(file) => handlePhoto(loc.id, file)}
-              onAdditionalPhotosAdd={(files) => handleAdditionalPhotos(loc.id, files)}
-              onAdditionalPhotoRemove={(key) => removeAdditionalPhoto(loc.id, key)}
             />
           ))}
-          <button type="button" className="btn-add" onClick={addLocation}>+ Add Screen Location</button>
-        </div>
-
-        <div className="panel">
-          <h2>Install Resource Estimate</h2>
-          <div className="field-row">
-            <div className="field"><label>Engineer Days (est.)</label><input type="number" min="0" value={form.engDays} onChange={(e) => setField('engDays', e.target.value)} /></div>
-            <div className="field"><label>Engineers Required</label><input type="number" min="0" value={form.engCount} onChange={(e) => setField('engCount', e.target.value)} /></div>
-          </div>
+          <button type="button" className="btn-add" onClick={addLocation}>+ Add Screen</button>
         </div>
 
         <div className="panel">
@@ -214,7 +170,7 @@ export default function NewSurveyPage() {
 
         {error && <p className="error-text">{error}</p>}
         <div className="actions-row">
-          <button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Submitting…' : 'Submit Survey'}</button>
+          <button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Submitting…' : 'Submit Confirmation'}</button>
         </div>
       </form>
     </main>

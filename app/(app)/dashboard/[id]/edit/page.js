@@ -1,5 +1,5 @@
-import { createClient } from '../../../../lib/supabaseServer';
-import { EditSurveyForm } from '../../../../components/EditSurveyForm';
+import { createClient } from '../../../../../lib/supabaseServer';
+import { EditSurveyForm } from '../../../../../components/EditSurveyForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +23,10 @@ export default async function EditSurveyPage({ params }) {
 
   const { data: clients } = await supabase.from('clients').select('id, name').order('name', { ascending: true });
 
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: editorProfile } = await supabase.from('profiles').select('full_name, email').eq('id', user.id).single();
+  const editorName = editorProfile?.full_name || editorProfile?.email || 'Unknown user';
+
   const locationsWithUrls = await Promise.all(
     (survey.locations || []).map(async (loc) => {
       let photoUrl = null;
@@ -45,7 +49,7 @@ export default async function EditSurveyPage({ params }) {
     <main>
       <a className="back-link" href={`/dashboard/${survey.id}`}>&larr; Back to Report</a>
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, margin: '14px 0' }}>Edit Survey</h2>
-      <EditSurveyForm survey={survey} locationsWithUrls={locationsWithUrls} clients={clients || []} />
+      <EditSurveyForm survey={survey} locationsWithUrls={locationsWithUrls} clients={clients || []} editorName={editorName} />
     </main>
   );
 }

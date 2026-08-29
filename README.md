@@ -1,10 +1,22 @@
 # Site Survey — Digital Signage
 
-Three-part app:
-- `/` — public survey form. No account needed, anyone with the link can submit.
-- `/dashboard` — reports view. Requires a logged-in account.
-- `/admin` — user permissions. Requires a super admin account; the "Admin" nav link
-  only shows up for super admins.
+Five-part app:
+- `/` — public site survey form. No account needed, anyone with the link can submit.
+- `/dashboard` — site survey reports view. Requires a logged-in account.
+- `/install` — public install-completion form (proof photos once a job's finished).
+  No account needed, not linked to the original survey (different engineer
+  companies often do the survey vs. the install).
+- `/installations` — install confirmation reports view. Requires a logged-in
+  account, same client-permission rules as `/dashboard`.
+- `/admin` — user permissions and clients. Requires a super admin account; the
+  "Admin" nav link only shows up for super admins.
+
+The left-hand sidebar shows a different set of links depending on who's looking:
+anyone not logged in (engineers) only ever sees New Survey / New Install — there's
+no client-side hiding to work around, those are genuinely the only two pages that
+exist in the public route group (`app/(public)/`). A logged-in account also sees
+Surveys and Installations; only a super admin additionally sees Admin. That check
+happens once, server-side, in `app/(app)/layout.js`.
 
 ## 1. One-time Supabase setup
 
@@ -52,6 +64,41 @@ Three-part app:
     button on the report page, using the same client-permission rule as viewing
     and deleting. Engineers still have no accounts, so there's no self-service
     edit — corrections go through whichever PM has access to that survey.
+15. Also run `supabase/008_survey_edit_history.sql` — this adds an "Edit History"
+    list to the report (who edited the survey and when, on top of the engineer
+    who originally submitted it).
+16. Also run `supabase/009_client_notification_email.sql` — this adds a
+    notification inbox field per client, settable from `/admin`. See
+    **Email notifications** below to actually turn sending on — the column
+    alone doesn't send anything.
+17. Also run `supabase/010_installations.sql` — this creates the `installations`
+    table and its own access rules (anyone can submit at `/install`, only
+    accounts with access to that client can view/edit/delete at `/installations`).
+    Reuses the same `survey-photos` storage bucket, so no storage changes needed.
+
+## Email notifications (optional)
+
+When a survey or install confirmation comes in, the app can email the
+submitting client's team — e.g. Starbucks surveys go to the Starbucks team's
+shared inbox, TUI installs go to TUI's. This needs its own email-sending
+service — Supabase's built-in email is Auth-only (signups, password resets)
+and can't send arbitrary notifications.
+
+1. Create a free account at [resend.com](https://resend.com) and generate an API key.
+2. In `.env.local` (and later, Vercel's Environment Variables), set:
+   - `RESEND_API_KEY` — the key from step 1.
+   - `SUPABASE_SERVICE_ROLE_KEY` — Supabase → Project Settings → API Keys →
+     the **service_role** secret (not the publishable one). This must stay
+     server-only — never prefix it with `NEXT_PUBLIC_`.
+   - `NOTIFY_FROM_EMAIL` — leave as `onboarding@resend.dev` for testing, or
+     switch to your own address once you verify a sending domain in Resend.
+   - `NEXT_PUBLIC_APP_URL` — your live URL, so notification emails can link
+     straight to the report (e.g. `https://your-app.vercel.app`).
+3. In `/admin` → Clients, set a notification inbox for each client you want
+   notified.
+
+Until both `RESEND_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are set, submissions
+work exactly as before — notifications just silently don't send.
 
 ## 2. Local setup
 
