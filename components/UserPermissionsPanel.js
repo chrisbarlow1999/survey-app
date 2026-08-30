@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '../lib/supabaseClient';
+import { suggestPassword } from '../lib/suggestPassword';
 
 export function UserPermissionsPanel({ currentUserId, initialProfiles, clients, initialGrants }) {
   const supabase = createClient();
@@ -10,6 +11,9 @@ export function UserPermissionsPanel({ currentUserId, initialProfiles, clients, 
     new Set(initialGrants.map((g) => `${g.profile_id}:${g.client_id}`))
   );
   const [busyKey, setBusyKey] = useState(null);
+  const [resetPasswords, setResetPasswords] = useState({}); // profileId -> confirmed new password
+  const [resetOpenFor, setResetOpenFor] = useState(null); // profileId currently composing a reset
+  const [resetDraft, setResetDraft] = useState('');
 
   async function handleRoleChange(profileId, newRole) {
     if (profileId === currentUserId && newRole !== 'super_admin') {
@@ -50,6 +54,36 @@ export function UserPermissionsPanel({ currentUserId, initialProfiles, clients, 
     }
   }
 
+  function openReset(profileId) {
+    setResetOpenFor(profileId);
+    setResetDraft(suggestPassword());
+  }
+
+  async function confirmReset(profileId) {
+    const password = resetDraft.trim();
+    if (password.length < 6) return;
+    const key = `reset:${profileId}`;
+    setBusyKey(key);
+    try {
+      const res = await fetch('/api/admin-reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: profileId, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not reset password.');
+      setResetPasswords((r) => ({ ...r, [profileId]: data.password }));
+      setResetOpenFor(null);
+    } catch (err) {
+      alert(err.message);
+    }
+    setBusyKey(null);
+  }
+
+  function copyPassword(password) {
+    navigator.clipboard.writeText(password).catch(() => {});
+  }
+
   if (profiles.length === 0) {
     return <div className="empty-state">No accounts yet.</div>;
   }
@@ -58,6 +92,8 @@ export function UserPermissionsPanel({ currentUserId, initialProfiles, clients, 
     <div className="user-table">
       {profiles.map((p) => {
         const isSuperAdmin = p.role === 'super_admin';
+        const newPassword = resetPasswords[p.id];
+        const isComposing = resetOpenFor === p.id;
         return (
           <div className="user-row" key={p.id}>
             <div className="user-row-head">
@@ -65,16 +101,66 @@ export function UserPermissionsPanel({ currentUserId, initialProfiles, clients, 
                 <div className="user-name">{p.full_name || 'Unnamed'}{p.id === currentUserId ? <span className="you-badge">You</span> : null}</div>
                 <div className="user-email">{p.email || p.id}</div>
               </div>
-              <select
-                value={p.role}
-                onChange={(e) => handleRoleChange(p.id, e.target.value)}
-                disabled={busyKey === `role:${p.id}`}
-                style={{ width: 'auto', minWidth: 150 }}
-              >
-                <option value="user">User</option>
-                <option value="super_admin">Super Admin</option>
-              </select>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => (isComposing ? setResetOpenFor(null) : openReset(p.id))}
+                >
+                  {isComposing ? 'Cancel' : 'Reset Password'}
+                </button>
+                <select
+                  value={p.role}
+                  onChange={(e) => handleRoleChange(p.id, e.target.value)}
+                  disabled={busyKey === `role:${p.id}`}
+                  style={{ width: 'auto', minWidth: 150 }}
+                >
+                  <option value="user">User</option>
+                  <option value="super_admin">Super Admin</option>
+                </select>
+              </div>
             </div>
+
+            {isComposing && (
+              <div className="panel" style={{ margin: '10px 0 0', padding: 12 }}>
+                <p className="hint" style={{ margin: '0 0 8px' }}>
+                  A random password is suggested below — edit it to set your own, or use it as-is.
+                  Their current password stops working the moment you confirm.
+                </p>
+                <div className="field-row" style={{ marginBottom: 8 }}>
+                  <div className="field" style={{ flex: '1 1 auto' }}>
+                    <input value={resetDraft} onChange={(e) => setResetDraft(e.target.value)} style={{ fontFamily: 'var(--font-mono)' }} />
+                  </div>
+                </div>
+                {resetDraft.trim().length > 0 && resetDraft.trim().length < 6 && (
+                  <p className="error-text" style={{ margin: '0 0 8px' }}>Must be at least 6 characters.</p>
+                )}
+                <div className="actions-row" style={{ justifyContent: 'flex-start' }}>
+                  <button type="button" className="btn btn-ghost" onClick={() => setResetDraft(suggestPassword())}>Generate New</button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => confirmReset(p.id)}
+                    disabled={busyKey === `reset:${p.id}` || resetDraft.trim().length < 6}
+                  >
+                    {busyKey === `reset:${p.id}` ? 'Setting…' : 'Set Password'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {newPassword && (
+              <div className="panel success-panel" style={{ margin: '10px 0 0', padding: 12 }}>
+                <p className="hint" style={{ margin: '0 0 6px' }}>
+                  New password — give this to them directly, it won't be shown again.
+                </p>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)' }}>{newPassword}</span>
+                  <button type="button" className="btn btn-ghost" onClick={() => copyPassword(newPassword)}>Copy</button>
+                  <button type="button" className="btn btn-ghost" onClick={() => setResetPasswords((r) => { const next = { ...r }; delete next[p.id]; return next; })}>Dismiss</button>
+                </div>
+              </div>
+            )}
 
             {!isSuperAdmin && (
               clients.length === 0 ? (

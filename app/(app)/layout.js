@@ -23,7 +23,13 @@ export default async function AppLayout({ children }) {
     { href: '/installations', label: 'Installations' },
   ];
   if (isSuperAdmin) {
-    navItems.push({ href: '/admin', label: 'Admin' });
+    navItems.push({
+      label: 'Admin',
+      children: [
+        { href: '/admin/clients', label: 'Clients' },
+        { href: '/admin/accounts', label: 'Accounts' },
+      ],
+    });
   }
 
   return (

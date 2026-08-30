@@ -59,6 +59,25 @@ a{color:inherit;}
 .sidebar nav a:hover{background:var(--bg-panel-2);color:var(--text-primary);}
 .sidebar nav a.active{background:var(--bg-panel-2);color:var(--accent-amber);font-weight:600;}
 
+.sidebar-group{display:flex;flex-direction:column;}
+.sidebar-group-toggle{
+  display:flex;align-items:center;justify-content:space-between;width:100%;
+  font-family:var(--font-mono);font-size:12.5px;text-transform:uppercase;letter-spacing:0.05em;
+  color:var(--text-muted);background:none;border:none;text-align:left;
+  padding:11px 14px;border-radius:6px;cursor:pointer;
+}
+.sidebar-group-toggle:hover{background:var(--bg-panel-2);color:var(--text-primary);}
+.sidebar-group-toggle.active{color:var(--accent-amber);}
+.sidebar-group-chevron{display:inline-block;font-size:10px;transition:transform 0.15s ease;}
+.sidebar-group-chevron.open{transform:rotate(90deg);}
+.sidebar-group-children{display:flex;flex-direction:column;padding-left:10px;}
+.sidebar-group-children a{
+  font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:0.05em;
+  color:var(--text-muted);text-decoration:none;padding:9px 14px;border-radius:6px;
+}
+.sidebar-group-children a:hover{background:var(--bg-panel-2);color:var(--text-primary);}
+.sidebar-group-children a.active{background:var(--bg-panel-2);color:var(--accent-amber);font-weight:600;}
+
 .sidebar-footer{margin-top:auto;padding:14px 12px 0;border-top:1px solid var(--grid-line);}
 .sidebar-account-name{
   font-family:var(--font-mono);font-size:11.5px;color:var(--text-muted);

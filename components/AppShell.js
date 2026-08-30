@@ -10,13 +10,31 @@ function isActive(pathname, href) {
   return pathname === href || pathname.startsWith(href + '/');
 }
 
+function isGroupActive(pathname, group) {
+  return group.children.some((c) => isActive(pathname, c.href));
+}
+
 const LOGGED_IN_NAV_ITEMS = [
   { href: '/', label: 'New Survey' },
   { href: '/install', label: 'New Install' },
   { href: '/dashboard', label: 'Surveys' },
   { href: '/installations', label: 'Installations' },
 ];
-const ADMIN_NAV_ITEM = { href: '/admin', label: 'Admin' };
+const ADMIN_NAV_GROUP = {
+  label: 'Admin',
+  children: [
+    { href: '/admin/clients', label: 'Clients' },
+    { href: '/admin/accounts', label: 'Accounts' },
+  ],
+};
+
+function initialExpandedGroups(navItems, pathname) {
+  const initial = new Set();
+  navItems.forEach((item) => {
+    if (item.children && isGroupActive(pathname, item)) initial.add(item.label);
+  });
+  return initial;
+}
 
 // checkSession: only set by the public layout. Public pages (/, /install) stay
 // fully static server-side on purpose — no auth check there, so a logged-in
@@ -29,6 +47,7 @@ export function AppShell({ navItems, footer, checkSession, children }) {
   const [open, setOpen] = useState(false);
   const [sessionNav, setSessionNav] = useState(null);
   const [accountName, setAccountName] = useState(null);
+  const [expandedGroups, setExpandedGroups] = useState(() => initialExpandedGroups(navItems, pathname));
 
   useEffect(() => {
     if (!checkSession) return;
@@ -38,7 +57,8 @@ export function AppShell({ navItems, footer, checkSession, children }) {
       if (!session || cancelled) return;
       const { data: profile } = await supabase.from('profiles').select('role, full_name, email').eq('id', session.user.id).single();
       if (cancelled) return;
-      setSessionNav(profile?.role === 'super_admin' ? [...LOGGED_IN_NAV_ITEMS, ADMIN_NAV_ITEM] : LOGGED_IN_NAV_ITEMS);
+      const upgraded = profile?.role === 'super_admin' ? [...LOGGED_IN_NAV_ITEMS, ADMIN_NAV_GROUP] : LOGGED_IN_NAV_ITEMS;
+      setSessionNav(upgraded);
       setAccountName(profile?.full_name || profile?.email || null);
     });
     return () => { cancelled = true; };
@@ -46,6 +66,15 @@ export function AppShell({ navItems, footer, checkSession, children }) {
 
   const items = sessionNav || navItems;
   const activeFooter = sessionNav ? <LogoutButton name={accountName} /> : footer;
+
+  function toggleGroup(label) {
+    setExpandedGroups((s) => {
+      const next = new Set(s);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
 
   return (
     <div className="shell">
@@ -56,16 +85,49 @@ export function AppShell({ navItems, footer, checkSession, children }) {
       <aside className={`sidebar no-print${open ? ' open' : ''}`}>
         <a href="/" className="brand"><span className="mark"></span>Site Survey</a>
         <nav>
-          {items.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className={isActive(pathname, item.href) ? 'active' : ''}
-              onClick={() => setOpen(false)}
-            >
-              {item.label}
-            </a>
-          ))}
+          {items.map((item) => {
+            if (item.children) {
+              const groupActive = isGroupActive(pathname, item);
+              const expanded = expandedGroups.has(item.label);
+              return (
+                <div className="sidebar-group" key={item.label}>
+                  <button
+                    type="button"
+                    className={`sidebar-group-toggle${groupActive ? ' active' : ''}`}
+                    onClick={() => toggleGroup(item.label)}
+                    aria-expanded={expanded}
+                  >
+                    {item.label}
+                    <span className={`sidebar-group-chevron${expanded ? ' open' : ''}`}>&#9656;</span>
+                  </button>
+                  {expanded && (
+                    <div className="sidebar-group-children">
+                      {item.children.map((child) => (
+                        <a
+                          key={child.href}
+                          href={child.href}
+                          className={isActive(pathname, child.href) ? 'active' : ''}
+                          onClick={() => setOpen(false)}
+                        >
+                          {child.label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return (
+              <a
+                key={item.href}
+                href={item.href}
+                className={isActive(pathname, item.href) ? 'active' : ''}
+                onClick={() => setOpen(false)}
+              >
+                {item.label}
+              </a>
+            );
+          })}
         </nav>
         {activeFooter && <div className="sidebar-footer">{activeFooter}</div>}
       </aside>

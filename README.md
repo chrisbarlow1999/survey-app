@@ -8,15 +8,18 @@ Five-part app:
   companies often do the survey vs. the install).
 - `/installations` — install confirmation reports view. Requires a logged-in
   account, same client-permission rules as `/dashboard`.
-- `/admin` — user permissions and clients. Requires a super admin account; the
-  "Admin" nav link only shows up for super admins.
+- `/admin/clients` — add/rename/delete clients, set each one's notification inbox.
+- `/admin/accounts` — create accounts, manage roles and client access, reset
+  passwords. Both admin pages require a super admin account; `/admin` itself
+  just redirects to `/admin/clients`.
 
 The left-hand sidebar shows a different set of links depending on who's looking:
 anyone not logged in (engineers) only ever sees New Survey / New Install — there's
 no client-side hiding to work around, those are genuinely the only two pages that
 exist in the public route group (`app/(public)/`). A logged-in account also sees
-Surveys and Installations; only a super admin additionally sees Admin. That check
-happens once, server-side, in `app/(app)/layout.js`.
+Surveys and Installations; only a super admin additionally sees an expandable
+Admin section (Clients / Accounts). That check happens once, server-side, in
+`app/(app)/layout.js`.
 
 ## 1. One-time Supabase setup
 
@@ -24,15 +27,19 @@ happens once, server-side, in `app/(app)/layout.js`.
 2. Paste in the contents of `supabase/schema.sql` and run it. This creates the `surveys`
    and `profiles` tables, the `survey-photos` storage bucket, and the access rules:
    anyone can submit a survey, only logged-in users can read them back.
-3. Go to **Authentication → Users** and manually create your ~20 dashboard accounts
-   (one per PM/reviewer) with an email + password. There's no public sign-up page —
-   this is intentional, so only people you've added can see the dashboard.
+3. Go to **Authentication → Users** and manually create just **your own** account
+   (email + password) — this is the one bootstrap account you need by hand, since
+   you have to be logged in as a super admin before `/admin` → Create Account can
+   make any others. Every other account gets created from `/admin` once you're
+   set up (see **Creating accounts** below) — there's no public sign-up page.
 4. Also run `supabase/002_add_delete_policy.sql` in the SQL Editor — this enables the
    "Delete Survey" button in the dashboard.
 5. Also run `supabase/003_add_address_column.sql` — this adds the Address field.
 6. Also run `supabase/004_registration_and_permissions.sql` — this adds:
-   - Public self-registration restricted to @linney.com emails (applies even to
-     accounts you add manually going forward)
+   - A database-level restriction so only @linney.com emails can ever become
+     accounts (self-registration used to exist and relied on this — it's since
+     been removed in favor of admin-created accounts, see below, but the
+     restriction is still a useful safety net)
    - A `clients` table and per-account permission groups
 7. **Add your clients**: Supabase → Table Editor → `clients` → insert a row per
    client (just a name — e.g. "Manchester United", "Everton FC").
@@ -46,12 +53,9 @@ happens once, server-side, in `app/(app)/layout.js`.
    → insert a row with that account's `profile_id` (from the `profiles` table) and
    the `client_id` of the client they should see. An account with no rows here (and
    not a super admin) sees an empty dashboard.
-10. **Enable email confirmations**: Supabase → Authentication → Providers → Email,
-    make sure "Confirm email" is switched on (it's on by default for new projects).
-11. **Set your redirect URLs**: Supabase → Authentication → URL Configuration — add
-    both `http://localhost:3000/login` and your real Vercel URL (e.g.
-    `https://your-app.vercel.app/login`) under Redirect URLs, so confirmation email
-    links work in both places.
+10. *(No longer required — was for self-registration's confirmation email, which
+    no longer exists. Harmless to leave as-is.)*
+11. *(Same as above — only matters if you add a password-reset flow later.)*
 12. Also run `supabase/005_admin_user_management.sql` — this adds the `/admin` page:
     it mirrors each account's email onto `profiles` (needed to show a readable user
     list), and lets super admins view/edit every account's role and client access
@@ -79,6 +83,25 @@ happens once, server-side, in `app/(app)/layout.js`.
     "Site Sign-Off" to the install form: a typed name plus a drawn signature
     (finger/mouse), shown on the install report. Also reuses the `survey-photos`
     bucket (under a `signatures/` path prefix), no storage changes needed.
+
+## Creating accounts
+
+There's no self-registration — every account is created by a super admin from
+`/admin/accounts`: set a name, email, role, and (for regular users) which
+clients they can see, all in one step. Same page also has Reset Password next
+to each account, for when someone's locked out. Both require
+`SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API Keys → the
+**service_role** secret — not the publishable one) set in your environment,
+since creating or resetting a login account is a privileged operation the
+publishable key can't do. This is the same variable used by email
+notifications below, so if you've already set that up, both work with no
+extra step.
+
+On both creation and reset, a one-time random password is shown once on
+screen — pass it to the person directly (Slack, in person, etc.), since it's
+never emailed and never shown again. This deliberately avoids depending on
+email delivery at all for something as important as getting someone logged
+in, given the built-in Supabase email sender has proven unreliable in testing.
 
 ## Email notifications (optional)
 
