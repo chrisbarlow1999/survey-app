@@ -1,8 +1,36 @@
 import { createClient } from '../../../lib/supabaseServer';
 import { computeStats } from '../../../lib/stats';
 import { StatsStrip } from '../../../components/StatsStrip';
+import { ExportCsvButton } from '../../../components/ExportCsvButton';
 
 export const dynamic = 'force-dynamic';
+
+const CSV_HEADERS = [
+  'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Phone', 'Install Date',
+  'Address', 'Site Contact', 'Additional Info', 'Signed By', 'Submitted At',
+  'Screen #', 'Label', 'Installed', 'Notes',
+];
+
+function installationCsvRows(installations) {
+  const rows = [];
+  for (const inst of installations) {
+    const base = [
+      inst.site_location || '', inst.clients?.name || '', inst.engineer_first || '', inst.engineer_last || '',
+      inst.phone || '', inst.install_date || '', inst.address || '', inst.site_contact || '',
+      inst.additional_info || '', inst.signed_by || '',
+      inst.submitted_at ? new Date(inst.submitted_at).toLocaleString() : '',
+    ];
+    const locs = inst.locations || [];
+    if (locs.length === 0) {
+      rows.push([...base, '', '', '', '']);
+    } else {
+      locs.forEach((loc, i) => {
+        rows.push([...base, i + 1, loc.label || '', loc.installed || '', loc.notes || '']);
+      });
+    }
+  }
+  return rows;
+}
 
 export default async function InstallationsPage({ searchParams }) {
   const params = (await searchParams) || {};
@@ -16,7 +44,7 @@ export default async function InstallationsPage({ searchParams }) {
 
   let query = supabase
     .from('installations')
-    .select('id, site_location, engineer_first, engineer_last, install_date, submitted_at, locations, client_id, clients(id, name)')
+    .select('id, site_location, engineer_first, engineer_last, phone, install_date, address, site_contact, additional_info, signed_by, submitted_at, locations, client_id, clients(id, name)')
     .order('submitted_at', { ascending: false });
 
   if (clientId) query = query.eq('client_id', clientId);
@@ -58,6 +86,13 @@ export default async function InstallationsPage({ searchParams }) {
       </div>
 
       <div className="panel" style={{ padding: '12px 16px' }}>
+        <div className="toolbar" style={{ margin: '0 0 10px' }}>
+          <ExportCsvButton
+            filename={`installations-export-${new Date().toISOString().slice(0, 10)}.csv`}
+            headers={CSV_HEADERS}
+            rows={installationCsvRows(installations || [])}
+          />
+        </div>
         {error && <p className="error-text">Could not load installations: {error.message}</p>}
         {!error && (!installations || installations.length === 0) && (
           <div className="empty-state">{hasFilters ? 'No installations match your filters.' : 'No install confirmations submitted yet, or none are visible to your account.'}</div>

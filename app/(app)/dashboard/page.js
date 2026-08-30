@@ -1,8 +1,48 @@
 import { createClient } from '../../../lib/supabaseServer';
 import { computeStats } from '../../../lib/stats';
 import { StatsStrip } from '../../../components/StatsStrip';
+import { ExportCsvButton } from '../../../components/ExportCsvButton';
+import { SCREEN_SIZES } from '../../../lib/screenSizes';
 
 export const dynamic = 'force-dynamic';
+
+const CSV_HEADERS = [
+  'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Phone', 'Survey Date',
+  'Address', 'Site Contact', 'Engineer Days', 'Engineers Required', 'Additional Info', 'Submitted At',
+  'Location #', 'Screen Size', 'Orientation', 'Mount Type', 'Measurements', 'Power Available', 'Data/4G Available', 'Notes',
+];
+
+function surveyCsvRows(surveys) {
+  const rows = [];
+  for (const s of surveys) {
+    const base = [
+      s.site_location || '', s.clients?.name || '', s.engineer_first || '', s.engineer_last || '',
+      s.phone || '', s.survey_date || '', s.address || '', s.site_contact || '',
+      s.engineer_days ?? '', s.engineer_count ?? '', s.additional_info || '',
+      s.submitted_at ? new Date(s.submitted_at).toLocaleString() : '',
+    ];
+    const locs = s.locations || [];
+    if (locs.length === 0) {
+      rows.push([...base, '', '', '', '', '', '', '', '']);
+    } else {
+      locs.forEach((loc, i) => {
+        const sizeInfo = SCREEN_SIZES[loc.screen_size];
+        rows.push([
+          ...base,
+          i + 1,
+          sizeInfo ? sizeInfo.label : (loc.screen_size || ''),
+          loc.orientation || '',
+          loc.mount_type === 'Other' ? (loc.mount_type_other || 'Other') : (loc.mount_type || ''),
+          loc.measurements || '',
+          loc.power || '',
+          loc.data_port || '',
+          loc.notes || '',
+        ]);
+      });
+    }
+  }
+  return rows;
+}
 
 export default async function DashboardPage({ searchParams }) {
   const params = (await searchParams) || {};
@@ -16,7 +56,7 @@ export default async function DashboardPage({ searchParams }) {
 
   let query = supabase
     .from('surveys')
-    .select('id, site_location, engineer_first, engineer_last, survey_date, submitted_at, locations, client_id, clients(id, name)')
+    .select('id, site_location, engineer_first, engineer_last, phone, survey_date, address, site_contact, engineer_days, engineer_count, additional_info, submitted_at, locations, client_id, clients(id, name)')
     .order('submitted_at', { ascending: false });
 
   if (clientId) query = query.eq('client_id', clientId);
@@ -58,6 +98,13 @@ export default async function DashboardPage({ searchParams }) {
       </div>
 
       <div className="panel" style={{ padding: '12px 16px' }}>
+        <div className="toolbar" style={{ margin: '0 0 10px' }}>
+          <ExportCsvButton
+            filename={`surveys-export-${new Date().toISOString().slice(0, 10)}.csv`}
+            headers={CSV_HEADERS}
+            rows={surveyCsvRows(surveys || [])}
+          />
+        </div>
         {error && <p className="error-text">Could not load surveys: {error.message}</p>}
         {!error && (!surveys || surveys.length === 0) && (
           <div className="empty-state">{hasFilters ? 'No surveys match your filters.' : 'No surveys submitted yet, or none are visible to your account.'}</div>

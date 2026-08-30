@@ -10,15 +10,20 @@ Five-part app:
   account, same client-permission rules as `/dashboard`.
 - `/admin/clients` — add/rename/delete clients, set each one's notification inbox.
 - `/admin/accounts` — create accounts, manage roles and client access, reset
-  passwords. Both admin pages require a super admin account; `/admin` itself
-  just redirects to `/admin/clients`.
+  passwords, deactivate/reactivate.
+- `/admin/activity` — a log of who did what across the admin pages.
+
+All three admin pages require a super admin account; `/admin` itself just
+redirects to `/admin/clients`.
 
 The left-hand sidebar shows a different set of links depending on who's looking:
 anyone not logged in (engineers) only ever sees New Survey / New Install — there's
 no client-side hiding to work around, those are genuinely the only two pages that
-exist in the public route group (`app/(public)/`). A logged-in account also sees
-Surveys and Installations; only a super admin additionally sees an expandable
-Admin section (Clients / Accounts). That check happens once, server-side, in
+exist in the public route group (`app/(public)/`). A logged-in internal account
+(User or Super Admin) also sees Surveys and Installations, plus New Survey/New
+Install; a Client Viewer sees only Surveys and Installations, nothing else — they
+have no reason to submit forms. Only a super admin additionally sees an expandable
+Admin section (Clients / Accounts / Activity). That check happens once, server-side, in
 `app/(app)/layout.js`.
 
 ## 1. One-time Supabase setup
@@ -83,19 +88,45 @@ Admin section (Clients / Accounts). That check happens once, server-side, in
     "Site Sign-Off" to the install form: a typed name plus a drawn signature
     (finger/mouse), shown on the install report. Also reuses the `survey-photos`
     bucket (under a `signatures/` path prefix), no storage changes needed.
+19. Also run `supabase/012_account_deactivation.sql` — adds an `active` flag
+    to `profiles`, used by the Deactivate button in `/admin/accounts`.
+20. Also run `supabase/013_client_viewer_role.sql` — adds a third role,
+    `client_viewer`, for an external client's own contact to log in and see
+    only their own client's data, read-only. Also tightens the edit/delete
+    policies on `surveys`/`installations` so a client viewer with access can
+    never update or delete, even though (like everyone with client access)
+    they can view.
+21. Also run `supabase/014_admin_action_log.sql` — creates the `admin_actions`
+    table behind `/admin/activity` (who created accounts, changed roles, reset
+    passwords, or edited clients).
 
 ## Creating accounts
 
 There's no self-registration — every account is created by a super admin from
-`/admin/accounts`: set a name, email, role, and (for regular users) which
-clients they can see, all in one step. Same page also has Reset Password next
-to each account, for when someone's locked out. Both require
-`SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API Keys → the
-**service_role** secret — not the publishable one) set in your environment,
-since creating or resetting a login account is a privileged operation the
-publishable key can't do. This is the same variable used by email
-notifications below, so if you've already set that up, both work with no
-extra step.
+`/admin/accounts`: set a name, email, role, and (depending on role) which
+clients they can see, all in one step. Three roles:
+- **User** — internal staff, sees/edits whichever clients they're granted
+  (multi-select checkboxes).
+- **Super Admin** — sees and can edit everything, plus the Admin section.
+- **Client Viewer** — for an external client's own contact. Scoped to exactly
+  one client (a single dropdown, not checkboxes), and strictly read-only —
+  no Edit/Delete buttons in the UI, and the database itself refuses any
+  update/delete from that role even if someone tried to bypass the UI.
+
+The same page also has, per account: **Reset Password** (generates a new
+one-time password, for when someone's locked out) and **Deactivate**
+(blocks sign-in immediately via Supabase Auth's own ban mechanism, without
+deleting their account or history — Reactivate undoes it). All three of
+these require `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings →
+API Keys → the **service_role** secret — not the publishable one) set in
+your environment, since they're privileged operations the publishable key
+can't do. This is the same variable used by email notifications below, so
+if you've already set that up, all of this works with no extra step.
+
+Every account creation, password reset, deactivation, role change, and
+client grant/revoke — plus client add/rename/delete — is logged to
+`/admin/activity`, so if more than one person has super admin, there's a
+record of who did what.
 
 On both creation and reset, a one-time random password is shown once on
 screen — pass it to the person directly (Slack, in person, etc.), since it's

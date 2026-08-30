@@ -26,8 +26,11 @@ export async function POST(request) {
     if (!email || !email.trim()) {
       return NextResponse.json({ error: 'Email is required.' }, { status: 400 });
     }
-    if (role !== 'user' && role !== 'super_admin') {
+    if (!['user', 'super_admin', 'client_viewer'].includes(role)) {
       return NextResponse.json({ error: 'Invalid role.' }, { status: 400 });
+    }
+    if (role === 'client_viewer' && (!Array.isArray(clientIds) || clientIds.length !== 1)) {
+      return NextResponse.json({ error: 'A client viewer must be assigned exactly one client.' }, { status: 400 });
     }
     if (requestedPassword && requestedPassword.trim().length < 6) {
       return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 });
@@ -48,14 +51,22 @@ export async function POST(request) {
 
     const newUserId = created.user.id;
 
-    if (role === 'super_admin') {
-      const { error: roleErr } = await admin.from('profiles').update({ role: 'super_admin' }).eq('id', newUserId);
+    if (role !== 'user') {
+      const { error: roleErr } = await admin.from('profiles').update({ role }).eq('id', newUserId);
       if (roleErr) console.error('Failed to set role on new account', roleErr);
-    } else if (Array.isArray(clientIds) && clientIds.length) {
+    }
+    if (role !== 'super_admin' && Array.isArray(clientIds) && clientIds.length) {
       const rows = clientIds.map((clientId) => ({ profile_id: newUserId, client_id: clientId }));
       const { error: grantErr } = await admin.from('profile_clients').insert(rows);
       if (grantErr) console.error('Failed to grant client access on new account', grantErr);
     }
+
+    await admin.from('admin_actions').insert({
+      actor_id: user.id,
+      action: 'create_account',
+      target: email.trim(),
+      details: { role },
+    });
 
     return NextResponse.json({ ok: true, email: email.trim(), password });
   } catch (err) {

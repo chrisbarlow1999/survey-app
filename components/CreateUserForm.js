@@ -9,6 +9,7 @@ export function CreateUserForm({ clients }) {
   const [role, setRole] = useState('user');
   const [password, setPassword] = useState(() => suggestPassword());
   const [selectedClients, setSelectedClients] = useState(new Set());
+  const [viewerClientId, setViewerClientId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [created, setCreated] = useState(null);
@@ -32,8 +33,13 @@ export function CreateUserForm({ clients }) {
       setError('Password must be at least 6 characters.');
       return;
     }
+    if (role === 'client_viewer' && !viewerClientId) {
+      setError('Please select which client this account should see.');
+      return;
+    }
     setSubmitting(true);
     try {
+      const clientIds = role === 'client_viewer' ? [viewerClientId] : Array.from(selectedClients);
       const res = await fetch('/api/admin-create-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -41,7 +47,7 @@ export function CreateUserForm({ clients }) {
           email: email.trim(),
           fullName: fullName.trim(),
           role,
-          clientIds: Array.from(selectedClients),
+          clientIds,
           password: password.trim(),
         }),
       });
@@ -52,6 +58,7 @@ export function CreateUserForm({ clients }) {
       setEmail('');
       setRole('user');
       setSelectedClients(new Set());
+      setViewerClientId('');
       setPassword(suggestPassword());
     } catch (err) {
       setError(err.message);
@@ -92,6 +99,7 @@ export function CreateUserForm({ clients }) {
             <select value={role} onChange={(e) => setRole(e.target.value)}>
               <option value="user">User</option>
               <option value="super_admin">Super Admin</option>
+              <option value="client_viewer">Client Viewer</option>
             </select>
           </div>
         </div>
@@ -123,6 +131,25 @@ export function CreateUserForm({ clients }) {
         )}
         {role === 'super_admin' && (
           <p className="hint">Super admins see every client's surveys and installations — no need to pick specific ones.</p>
+        )}
+        {role === 'client_viewer' && (
+          clients.length === 0 ? (
+            <p className="hint">No clients exist yet — add one above first.</p>
+          ) : (
+            <div className="field-row">
+              <div className="field" style={{ flex: '1 1 100%' }}>
+                <label className="req">Client</label>
+                <select value={viewerClientId} onChange={(e) => setViewerClientId(e.target.value)}>
+                  <option value="">Please select</option>
+                  {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <p className="hint" style={{ margin: '6px 0 0' }}>
+                  This account will only ever see this one client's surveys and installations,
+                  read-only — no editing or deleting.
+                </p>
+              </div>
+            </div>
+          )
         )}
 
         {error && <p className="error-text">{error}</p>}

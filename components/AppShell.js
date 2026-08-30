@@ -14,9 +14,13 @@ function isGroupActive(pathname, group) {
   return group.children.some((c) => isActive(pathname, c.href));
 }
 
-const LOGGED_IN_NAV_ITEMS = [
+const STAFF_NAV_ITEMS = [
   { href: '/', label: 'New Survey' },
   { href: '/install', label: 'New Install' },
+  { href: '/dashboard', label: 'Surveys' },
+  { href: '/installations', label: 'Installations' },
+];
+const CLIENT_VIEWER_NAV_ITEMS = [
   { href: '/dashboard', label: 'Surveys' },
   { href: '/installations', label: 'Installations' },
 ];
@@ -25,6 +29,7 @@ const ADMIN_NAV_GROUP = {
   children: [
     { href: '/admin/clients', label: 'Clients' },
     { href: '/admin/accounts', label: 'Accounts' },
+    { href: '/admin/activity', label: 'Activity' },
   ],
 };
 
@@ -57,7 +62,11 @@ export function AppShell({ navItems, footer, checkSession, children }) {
       if (!session || cancelled) return;
       const { data: profile } = await supabase.from('profiles').select('role, full_name, email').eq('id', session.user.id).single();
       if (cancelled) return;
-      const upgraded = profile?.role === 'super_admin' ? [...LOGGED_IN_NAV_ITEMS, ADMIN_NAV_GROUP] : LOGGED_IN_NAV_ITEMS;
+      const upgraded = profile?.role === 'super_admin'
+        ? [...STAFF_NAV_ITEMS, ADMIN_NAV_GROUP]
+        : profile?.role === 'client_viewer'
+          ? CLIENT_VIEWER_NAV_ITEMS
+          : STAFF_NAV_ITEMS;
       setSessionNav(upgraded);
       setAccountName(profile?.full_name || profile?.email || null);
     });

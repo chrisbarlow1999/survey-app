@@ -24,8 +24,16 @@ export default async function EditSurveyPage({ params }) {
   const { data: clients } = await supabase.from('clients').select('id, name').order('name', { ascending: true });
 
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: editorProfile } = await supabase.from('profiles').select('full_name, email').eq('id', user.id).single();
+  const { data: editorProfile } = await supabase.from('profiles').select('full_name, email, role').eq('id', user.id).single();
   const editorName = editorProfile?.full_name || editorProfile?.email || 'Unknown user';
+
+  if (editorProfile?.role === 'client_viewer') {
+    return (
+      <main>
+        <div className="empty-state">You don't have permission to edit this.</div>
+      </main>
+    );
+  }
 
   const locationsWithUrls = await Promise.all(
     (survey.locations || []).map(async (loc) => {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '../lib/supabaseClient';
+import { logAdminAction } from '../lib/logAdminAction';
 
 export function ClientManagementPanel({ initialClients }) {
   const supabase = createClient();
@@ -32,6 +33,7 @@ export function ClientManagementPanel({ initialClients }) {
     }
     setClients((c) => sorted([...c, data]));
     setNewName('');
+    logAdminAction(supabase, 'create_client', name);
   }
 
   function startEdit(c) {
@@ -44,6 +46,7 @@ export function ClientManagementPanel({ initialClients }) {
     const name = editingName.trim();
     if (!name) return;
     const notificationEmail = editingEmail.trim() || null;
+    const oldName = clients.find((c) => c.id === id)?.name;
     setBusyId(id);
     const prev = clients;
     setClients((c) => sorted(c.map((x) => (x.id === id ? { ...x, name, notification_email: notificationEmail } : x))));
@@ -53,6 +56,8 @@ export function ClientManagementPanel({ initialClients }) {
     if (updErr) {
       alert(updErr.code === '23505' ? 'A client with that name already exists.' : 'Could not save changes.');
       setClients(prev);
+    } else if (oldName !== name) {
+      logAdminAction(supabase, 'rename_client', name, { from: oldName });
     }
   }
 
@@ -66,6 +71,8 @@ export function ClientManagementPanel({ initialClients }) {
     if (delErr) {
       alert('Could not delete this client — it likely still has surveys assigned to it.');
       setClients(prev);
+    } else {
+      logAdminAction(supabase, 'delete_client', name);
     }
   }
 

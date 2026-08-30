@@ -39,6 +39,13 @@ export async function POST(request) {
       return NextResponse.json({ error: updateErr.message }, { status: 400 });
     }
 
+    const { data: targetProfile } = await admin.from('profiles').select('email, full_name').eq('id', userId).single();
+    await admin.from('admin_actions').insert({
+      actor_id: user.id,
+      action: 'reset_password',
+      target: targetProfile?.full_name || targetProfile?.email || userId,
+    });
+
     return NextResponse.json({ ok: true, password });
   } catch (err) {
     console.error('admin-reset-password error', err);

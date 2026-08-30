@@ -27,6 +27,10 @@ export default async function InstallationReportPage({ params }) {
     );
   }
 
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: myProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const canEdit = myProfile?.role !== 'client_viewer';
+
   const locationsWithUrls = await Promise.all(
     (installation.locations || []).map(async (loc) => {
       let photoUrl = null;
@@ -48,15 +52,17 @@ export default async function InstallationReportPage({ params }) {
     <main>
       <a className="back-link" href="/installations">&larr; Back to Installations</a>
       <div className="toolbar no-print">
-        <a className="btn btn-ghost" href={`/installations/${installation.id}/edit`}>Edit</a>
+        {canEdit && <a className="btn btn-ghost" href={`/installations/${installation.id}/edit`}>Edit</a>}
         <PrintButton />
-        <DeleteInstallationButton
-          installationId={installation.id}
-          photoPaths={[
-            ...(installation.locations || []).map((l) => l.photo_path).filter(Boolean),
-            ...(installation.signature_path ? [installation.signature_path] : []),
-          ]}
-        />
+        {canEdit && (
+          <DeleteInstallationButton
+            installationId={installation.id}
+            photoPaths={[
+              ...(installation.locations || []).map((l) => l.photo_path).filter(Boolean),
+              ...(installation.signature_path ? [installation.signature_path] : []),
+            ]}
+          />
+        )}
       </div>
 
       <div className="panel" style={{ marginTop: 14 }}>
@@ -82,7 +88,7 @@ export default async function InstallationReportPage({ params }) {
             {signatureUrl && <img src={signatureUrl} alt="Signature" className="signature-existing-img" />}
           </div>
         )}
-        {installation.edit_history && installation.edit_history.length > 0 && (
+        {canEdit && installation.edit_history && installation.edit_history.length > 0 && (
           <div className="edit-history no-print">
             <div className="k">Edit History</div>
             <ul>

@@ -30,6 +30,10 @@ export default async function ReportPage({ params }) {
     );
   }
 
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: myProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const canEdit = myProfile?.role !== 'client_viewer';
+
   // Signed URLs for photos — the bucket is private, so each photo needs a short-lived link.
   const locationsWithUrls = await Promise.all(
     (survey.locations || []).map(async (loc) => {
@@ -55,15 +59,17 @@ export default async function ReportPage({ params }) {
     <main>
       <a className="back-link" href="/dashboard">&larr; Back to Dashboard</a>
       <div className="toolbar no-print">
-        <a className="btn btn-ghost" href={`/dashboard/${survey.id}/edit`}>Edit Survey</a>
+        {canEdit && <a className="btn btn-ghost" href={`/dashboard/${survey.id}/edit`}>Edit Survey</a>}
         <PrintButton />
-        <DeleteSurveyButton
-          surveyId={survey.id}
-          photoPaths={[
-            ...(survey.locations || []).map((l) => l.photo_path).filter(Boolean),
-            ...(survey.locations || []).flatMap((l) => l.additional_photos || []),
-          ]}
-        />
+        {canEdit && (
+          <DeleteSurveyButton
+            surveyId={survey.id}
+            photoPaths={[
+              ...(survey.locations || []).map((l) => l.photo_path).filter(Boolean),
+              ...(survey.locations || []).flatMap((l) => l.additional_photos || []),
+            ]}
+          />
+        )}
       </div>
 
       <div className="panel" style={{ marginTop: 14 }}>
@@ -84,7 +90,7 @@ export default async function ReportPage({ params }) {
             <div className="v">{survey.additional_info}</div>
           </div>
         )}
-        {survey.edit_history && survey.edit_history.length > 0 && (
+        {canEdit && survey.edit_history && survey.edit_history.length > 0 && (
           <div className="edit-history no-print">
             <div className="k">Edit History</div>
             <ul>

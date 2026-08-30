@@ -23,7 +23,7 @@ export default async function AdminAccountsPage() {
   }
 
   const [{ data: profiles, error: profilesError }, { data: clients }, { data: grants }] = await Promise.all([
-    supabase.from('profiles').select('id, email, full_name, role, created_at').order('created_at', { ascending: true }),
+    supabase.from('profiles').select('id, email, full_name, role, active, created_at').order('created_at', { ascending: true }),
     supabase.from('clients').select('id, name').order('name', { ascending: true }),
     supabase.from('profile_clients').select('profile_id, client_id'),
   ]);
@@ -43,9 +43,10 @@ export default async function AdminAccountsPage() {
       <div className="panel" style={{ padding: '12px 16px' }}>
         <h2>User Permissions</h2>
         <p className="hint">
-          Super admins see every survey. Everyone else only sees the clients they're granted below.
-          Use Reset Password if someone's locked out — it generates a new one-time password the
-          same way account creation does.
+          Super admins see every survey. Users see the clients they're granted below. Client Viewers
+          see one client only, read-only — no editing or deleting. Reset Password generates a new
+          one-time password when someone's locked out; Deactivate blocks sign-in immediately without
+          deleting their history.
         </p>
         {profilesError && <p className="error-text">Could not load users: {profilesError.message}</p>}
         {!profilesError && (
