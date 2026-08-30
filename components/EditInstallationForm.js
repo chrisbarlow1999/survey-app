@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
 import { InstallLocationCard } from './InstallLocationCard';
+import { SignaturePad } from './SignaturePad';
 
 function locationFromExisting(loc) {
   return {
@@ -29,7 +30,7 @@ function freshLocation() {
   };
 }
 
-export function EditInstallationForm({ installation, locationsWithUrls, clients, editorName }) {
+export function EditInstallationForm({ installation, locationsWithUrls, clients, editorName, signatureUrl }) {
   const supabase = createClient();
   const router = useRouter();
 
@@ -43,8 +44,10 @@ export function EditInstallationForm({ installation, locationsWithUrls, clients,
     siteContact: installation.site_contact || '',
     clientId: installation.client_id || '',
     additionalInfo: installation.additional_info || '',
+    signedBy: installation.signed_by || '',
   });
   const [locations, setLocations] = useState(() => locationsWithUrls.map(locationFromExisting));
+  const [signatureBlob, setSignatureBlob] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -93,6 +96,18 @@ export function EditInstallationForm({ installation, locationsWithUrls, clients,
         });
       }
 
+      let signaturePath = installation.signature_path || null;
+      if (signatureBlob) {
+        const path = `signatures/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`;
+        const { error: upErr } = await supabase.storage.from('survey-photos').upload(path, signatureBlob, { contentType: 'image/png' });
+        if (upErr) throw upErr;
+        const oldSignaturePath = installation.signature_path;
+        signaturePath = path;
+        if (oldSignaturePath) {
+          supabase.storage.from('survey-photos').remove([oldSignaturePath]).catch(() => {});
+        }
+      }
+
       const newHistoryEntry = { name: editorName, edited_at: new Date().toISOString() };
       const { error: updateErr } = await supabase.from('installations').update({
         engineer_first: form.engFirst,
@@ -105,6 +120,8 @@ export function EditInstallationForm({ installation, locationsWithUrls, clients,
         site_contact: form.siteContact,
         locations: uploadedLocations,
         additional_info: form.additionalInfo,
+        signature_path: signaturePath,
+        signed_by: form.signedBy || null,
         edit_history: [...(installation.edit_history || []), newHistoryEntry],
       }).eq('id', installation.id);
       if (updateErr) throw updateErr;
@@ -164,6 +181,17 @@ export function EditInstallationForm({ installation, locationsWithUrls, clients,
           />
         ))}
         <button type="button" className="btn-add" onClick={addLocation}>+ Add Screen</button>
+      </div>
+
+      <div className="panel">
+        <h2>Site Sign-Off (optional)</h2>
+        <div className="field-row">
+          <div className="field" style={{ flex: '1 1 100%' }}>
+            <label>Signed By (name)</label>
+            <input value={form.signedBy} onChange={(e) => setField('signedBy', e.target.value)} />
+          </div>
+        </div>
+        <SignaturePad onChange={setSignatureBlob} existingUrl={signatureUrl} />
       </div>
 
       <div className="panel">

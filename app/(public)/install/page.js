@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '../../../lib/supabaseClient';
 import { InstallLocationCard } from '../../../components/InstallLocationCard';
+import { SignaturePad } from '../../../components/SignaturePad';
 
 function freshLocation() {
   return {
@@ -19,10 +20,11 @@ export default function NewInstallationPage() {
   const supabase = createClient();
   const [form, setForm] = useState({
     engFirst: '', engLast: '', phone: '', date: '', siteLocation: '', address: '', siteContact: '', clientId: '',
-    additionalInfo: '',
+    additionalInfo: '', signedBy: '',
   });
   const [clients, setClients] = useState([]);
   const [locations, setLocations] = useState([freshLocation()]);
+  const [signatureBlob, setSignatureBlob] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -77,6 +79,14 @@ export default function NewInstallationPage() {
         });
       }
 
+      let signaturePath = null;
+      if (signatureBlob) {
+        const path = `signatures/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`;
+        const { error: upErr } = await supabase.storage.from('survey-photos').upload(path, signatureBlob, { contentType: 'image/png' });
+        if (upErr) throw upErr;
+        signaturePath = path;
+      }
+
       const installationId = crypto.randomUUID();
       const { error: insertErr } = await supabase.from('installations').insert({
         id: installationId,
@@ -90,6 +100,8 @@ export default function NewInstallationPage() {
         site_contact: form.siteContact,
         locations: uploadedLocations,
         additional_info: form.additionalInfo,
+        signature_path: signaturePath,
+        signed_by: form.signedBy || null,
       });
       if (insertErr) throw insertErr;
 
@@ -161,6 +173,18 @@ export default function NewInstallationPage() {
             />
           ))}
           <button type="button" className="btn-add" onClick={addLocation}>+ Add Screen</button>
+        </div>
+
+        <div className="panel">
+          <h2>Site Sign-Off (optional)</h2>
+          <p className="hint">If the site contact is available, they can sign to confirm the install.</p>
+          <div className="field-row">
+            <div className="field" style={{ flex: '1 1 100%' }}>
+              <label>Signed By (name)</label>
+              <input value={form.signedBy} onChange={(e) => setField('signedBy', e.target.value)} />
+            </div>
+          </div>
+          <SignaturePad onChange={setSignatureBlob} />
         </div>
 
         <div className="panel">

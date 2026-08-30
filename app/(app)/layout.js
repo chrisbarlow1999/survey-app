@@ -9,9 +9,11 @@ export default async function AppLayout({ children }) {
   const { data: { user } } = await supabase.auth.getUser();
 
   let isSuperAdmin = false;
+  let accountName = null;
   if (user) {
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    const { data: profile } = await supabase.from('profiles').select('role, full_name, email').eq('id', user.id).single();
     isSuperAdmin = profile?.role === 'super_admin';
+    accountName = profile?.full_name || profile?.email || null;
   }
 
   const navItems = [
@@ -25,7 +27,7 @@ export default async function AppLayout({ children }) {
   }
 
   return (
-    <AppShell navItems={navItems} footer={<LogoutButton />}>
+    <AppShell navItems={navItems} footer={<LogoutButton name={accountName} />}>
       {children}
     </AppShell>
   );

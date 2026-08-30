@@ -7,7 +7,7 @@ const navItems = [
 
 export default function PublicLayout({ children }) {
   return (
-    <AppShell navItems={navItems} footer={<a href="/login" className="sidebar-footer-link">Login</a>}>
+    <AppShell navItems={navItems} footer={<a href="/login" className="sidebar-footer-link">Login</a>} checkSession>
       {children}
     </AppShell>
   );

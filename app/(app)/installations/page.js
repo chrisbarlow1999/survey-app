@@ -1,4 +1,6 @@
 import { createClient } from '../../../lib/supabaseServer';
+import { computeStats } from '../../../lib/stats';
+import { StatsStrip } from '../../../components/StatsStrip';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,13 +29,18 @@ export default async function InstallationsPage({ searchParams }) {
     );
   }
 
-  const [{ data: installations, error }, { data: clients }] = await Promise.all([
+  const [{ data: installations, error }, { data: clients }, { data: statsRows }] = await Promise.all([
     query,
     supabase.from('clients').select('id, name').order('name', { ascending: true }),
+    supabase.from('installations').select('submitted_at, clients(name)'),
   ]);
+
+  const stats = computeStats(statsRows || []);
 
   return (
     <main>
+      <StatsStrip total={stats.total} thisMonth={stats.thisMonth} clientStats={stats.clientStats} totalLabel="Total Installations" monthLabel="This Month" />
+
       <div className="panel" style={{ padding: '16px' }}>
         <form className="filter-row" method="get">
           <input type="text" name="q" placeholder="Search site or engineer…" defaultValue={q} />

@@ -75,6 +75,10 @@ happens once, server-side, in `app/(app)/layout.js`.
     table and its own access rules (anyone can submit at `/install`, only
     accounts with access to that client can view/edit/delete at `/installations`).
     Reuses the same `survey-photos` storage bucket, so no storage changes needed.
+18. Also run `supabase/011_installation_signature.sql` — this adds an optional
+    "Site Sign-Off" to the install form: a typed name plus a drawn signature
+    (finger/mouse), shown on the install report. Also reuses the `survey-photos`
+    bucket (under a `signatures/` path prefix), no storage changes needed.
 
 ## Email notifications (optional)
 

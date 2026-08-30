@@ -38,11 +38,17 @@ export default async function EditInstallationPage({ params }) {
     })
   );
 
+  let signatureUrl = null;
+  if (installation.signature_path) {
+    const { data } = await supabase.storage.from('survey-photos').createSignedUrl(installation.signature_path, 60 * 60);
+    signatureUrl = data?.signedUrl || null;
+  }
+
   return (
     <main>
       <a className="back-link" href={`/installations/${installation.id}`}>&larr; Back to Report</a>
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, margin: '14px 0' }}>Edit Install Confirmation</h2>
-      <EditInstallationForm installation={installation} locationsWithUrls={locationsWithUrls} clients={clients || []} editorName={editorName} />
+      <EditInstallationForm installation={installation} locationsWithUrls={locationsWithUrls} clients={clients || []} editorName={editorName} signatureUrl={signatureUrl} />
     </main>
   );
 }

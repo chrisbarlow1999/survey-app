@@ -38,6 +38,12 @@ export default async function InstallationReportPage({ params }) {
     })
   );
 
+  let signatureUrl = null;
+  if (installation.signature_path) {
+    const { data } = await supabase.storage.from('survey-photos').createSignedUrl(installation.signature_path, 60 * 60);
+    signatureUrl = data?.signedUrl || null;
+  }
+
   return (
     <main>
       <a className="back-link" href="/installations">&larr; Back to Installations</a>
@@ -46,7 +52,10 @@ export default async function InstallationReportPage({ params }) {
         <PrintButton />
         <DeleteInstallationButton
           installationId={installation.id}
-          photoPaths={(installation.locations || []).map((l) => l.photo_path).filter(Boolean)}
+          photoPaths={[
+            ...(installation.locations || []).map((l) => l.photo_path).filter(Boolean),
+            ...(installation.signature_path ? [installation.signature_path] : []),
+          ]}
         />
       </div>
 
@@ -64,6 +73,13 @@ export default async function InstallationReportPage({ params }) {
           <div className="kv" style={{ borderColor: 'var(--accent-cyan)' }}>
             <div className="k">Additional Information</div>
             <div className="v">{installation.additional_info}</div>
+          </div>
+        )}
+        {(installation.signed_by || signatureUrl) && (
+          <div className="kv" style={{ borderColor: 'var(--ok)' }}>
+            <div className="k">Site Sign-Off</div>
+            <div className="v">{installation.signed_by || 'Signed'}</div>
+            {signatureUrl && <img src={signatureUrl} alt="Signature" className="signature-existing-img" />}
           </div>
         )}
         {installation.edit_history && installation.edit_history.length > 0 && (
