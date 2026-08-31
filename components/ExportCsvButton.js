@@ -5,6 +5,7 @@ import { createClient } from '../lib/supabaseClient';
 import { toCsv } from '../lib/toCsv';
 import { SCREEN_SIZES } from '../lib/screenSizes';
 import { formatDate, formatDateTime } from '../lib/formatDate';
+import { applyArchiveFilter } from './ArchiveFilter';
 
 // Fetches the full filtered set when clicked rather than exporting just the
 // visible page — the list itself is paginated for performance, but an export
@@ -101,10 +102,7 @@ export function ExportCsvButton({ kind, filters }) {
   async function handleExport() {
     setBusy(true);
     try {
-      let query = supabase.from(config.table).select(config.select);
-      query = filters.showArchived
-        ? query.not('archived_at', 'is', null)
-        : query.is('archived_at', null);
+      let query = applyArchiveFilter(supabase.from(config.table).select(config.select), filters.archived);
       if (filters.clientId) query = query.eq('client_id', filters.clientId);
       if (filters.from) query = query.gte(config.dateColumn, filters.from);
       if (filters.to) query = query.lte(config.dateColumn, filters.to);

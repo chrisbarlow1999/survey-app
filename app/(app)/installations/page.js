@@ -5,6 +5,7 @@ import { ExportCsvButton } from '../../../components/ExportCsvButton';
 import { Pagination } from '../../../components/Pagination';
 import { PAGE_SIZE, SORT_OPTIONS, resolveSort, parsePage } from '../../../lib/listQuery';
 import { formatDate, formatDateTime } from '../../../lib/formatDate';
+import { ArchiveFilter, applyArchiveFilter } from '../../../components/ArchiveFilter';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,10 +15,10 @@ export default async function InstallationsPage({ searchParams }) {
   const clientId = params.client || '';
   const from = params.from || '';
   const to = params.to || '';
-  const showArchived = params.archived === '1';
+  const archived = params.archived || '';
   const sort = resolveSort(params.sort, 'install_date');
   const page = parsePage(params.page);
-  const hasFilters = Boolean(q || clientId || from || to || showArchived || params.sort);
+  const hasFilters = Boolean(q || clientId || from || to || archived || params.sort);
 
   const supabase = await createClient();
 
@@ -28,7 +29,7 @@ export default async function InstallationsPage({ searchParams }) {
       { count: 'exact' }
     );
 
-  query = showArchived ? query.not('archived_at', 'is', null) : query.is('archived_at', null);
+  query = applyArchiveFilter(query, archived);
   if (clientId) query = query.eq('client_id', clientId);
   if (from) query = query.gte('install_date', from);
   if (to) query = query.lte('install_date', to);
@@ -69,10 +70,7 @@ export default async function InstallationsPage({ searchParams }) {
           <select name="sort" defaultValue={sort.value} title="Sort by">
             {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <label className="client-grant-chip" style={{ whiteSpace: 'nowrap' }}>
-            <input type="checkbox" name="archived" value="1" defaultChecked={showArchived} />
-            Archived
-          </label>
+          <ArchiveFilter value={archived} />
           <button className="btn btn-primary" type="submit">Filter</button>
           {hasFilters && <a className="btn btn-ghost" href="/installations">Clear</a>}
         </form>
@@ -80,12 +78,12 @@ export default async function InstallationsPage({ searchParams }) {
 
       <div className="panel" style={{ padding: '12px 16px' }}>
         <div className="toolbar" style={{ margin: '0 0 10px' }}>
-          <ExportCsvButton kind="installations" filters={{ q, clientId, from, to, showArchived }} />
+          <ExportCsvButton kind="installations" filters={{ q, clientId, from, to, archived }} />
         </div>
         {error && <p className="error-text">Could not load installations: {error.message}</p>}
         {!error && (!installations || installations.length === 0) && (
           <div className="empty-state">
-            {showArchived
+            {archived === '1'
               ? 'No archived installations.'
               : hasFilters
                 ? 'No installations match your filters.'
