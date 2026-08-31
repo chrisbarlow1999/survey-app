@@ -21,6 +21,7 @@ export default async function AppLayout({ children }) {
     navItems = [
       { href: '/dashboard', label: 'Surveys' },
       { href: '/installations', label: 'Installations' },
+      { href: '/sites', label: 'Site History' },
     ];
   } else {
     navItems = [
@@ -28,6 +29,7 @@ export default async function AppLayout({ children }) {
       { href: '/install', label: 'New Install' },
       { href: '/dashboard', label: 'Surveys' },
       { href: '/installations', label: 'Installations' },
+      { href: '/sites', label: 'Site History' },
     ];
     if (role === 'super_admin') {
       navItems.push({

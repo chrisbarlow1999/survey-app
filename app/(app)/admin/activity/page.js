@@ -1,4 +1,5 @@
 import { createClient } from '../../../../lib/supabaseServer';
+import { formatDateTime } from '../../../../lib/formatDate';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,7 @@ export default async function AdminActivityPage() {
               {entries.map((e) => (
                 <li key={e.id}>
                   <span style={{ color: 'var(--text-primary)' }}>{e.actor?.full_name || e.actor?.email || 'Unknown'}</span>
-                  {' '}{describe(e)} — {new Date(e.created_at).toLocaleString()}
+                  {' '}{describe(e)} — {formatDateTime(e.created_at)}
                 </li>
               ))}
             </ul>

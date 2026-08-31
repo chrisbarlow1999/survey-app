@@ -24,7 +24,7 @@ export async function proxy(request) {
 
   const { data: { session } } = await supabase.auth.getSession();
 
-  const needsSession = ['/dashboard', '/admin', '/installations'].some((p) => request.nextUrl.pathname.startsWith(p));
+  const needsSession = ['/dashboard', '/admin', '/installations', '/sites'].some((p) => request.nextUrl.pathname.startsWith(p));
   if (needsSession && !session) {
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
@@ -34,5 +34,5 @@ export async function proxy(request) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*', '/installations/:path*'],
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/installations/:path*', '/sites/:path*'],
 };

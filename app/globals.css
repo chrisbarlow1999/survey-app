@@ -201,6 +201,26 @@ textarea{resize:vertical;min-height:64px;}
 .sub-row .count{font-family:var(--font-mono);font-size:12px;color:var(--accent-amber);white-space:nowrap;}
 .empty-state{padding:40px 20px;text-align:center;color:var(--text-muted);font-family:var(--font-mono);font-size:13px;}
 
+.archived-badge{background:rgba(143,167,190,0.15) !important;color:var(--text-muted) !important;}
+.archived-banner{
+  border:1px solid var(--warn);border-left-width:3px;border-radius:8px;
+  background:rgba(224,104,75,0.08);color:var(--text-primary);
+  padding:12px 16px;margin-top:14px;font-size:13px;
+}
+
+.pagination{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--grid-line);}
+.pagination-info,.pagination-page{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);}
+.pagination-controls{display:flex;align-items:center;gap:10px;}
+.pagination .btn.disabled{opacity:0.4;cursor:not-allowed;}
+
+.attachment-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+.attachment-row{display:flex;align-items:center;gap:10px;border:1px solid var(--grid-line);border-radius:6px;padding:8px 12px;background:var(--bg-deep);}
+.attachment-name{flex:1;font-size:13px;word-break:break-all;color:var(--accent-cyan);text-decoration:none;}
+a.attachment-name:hover{text-decoration:underline;}
+.attachment-size{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);white-space:nowrap;}
+.attachment-remove{background:none;border:none;color:var(--text-muted);font-size:18px;line-height:1;cursor:pointer;padding:0 4px;}
+.attachment-remove:hover{color:var(--warn);}
+
 .kv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:18px;}
 .kv{border-left:2px solid var(--accent-amber);padding-left:10px;}
 .kv .k{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.06em;}
@@ -256,5 +276,37 @@ textarea{resize:vertical;min-height:64px;}
   .loc-card{background:white !important;}
   input[type=text],input[type=tel],input[type=date],input[type=number],input[type=email],input[type=password],textarea,select{background:white !important;}
   a[href]::after{content:none !important;}
+
+  /* Cover page — its own first page, detail starts after it. */
+  .report-cover{
+    display:flex !important;flex-direction:column;justify-content:space-between;
+    min-height:88vh;break-after:page;page-break-after:always;
+    padding:0;border:none !important;
+  }
+  .report-cover-top{padding-top:22vh;}
+  .report-cover-kicker{
+    font-family:var(--font-mono);font-size:11px;text-transform:uppercase;
+    letter-spacing:0.12em;color:#888;margin-bottom:14px;
+  }
+  .report-cover-site{
+    font-family:var(--font-display);font-size:38px;font-weight:700;
+    margin:0;line-height:1.15;color:#111;
+  }
+  .report-cover-client{
+    font-family:var(--font-display);font-size:18px;color:#555;margin-top:10px;
+  }
+  .report-cover-meta{
+    display:flex;gap:48px;flex-wrap:wrap;font-size:13px;color:#111;
+    border-top:1px solid #ddd;padding-top:16px;
+  }
+  .report-cover-label{
+    font-family:var(--font-mono);font-size:10px;text-transform:uppercase;
+    letter-spacing:0.08em;color:#888;margin-bottom:4px;
+  }
+
+  /* Client PDF: strip internal-only fields (resourcing estimates, engineer
+     phone, internal free-text notes). Set by ClientPrintButton just for the
+     duration of the print dialog. */
+  html.client-print .internal-only{display:none !important;}
 }
 .print-only{display:none;}

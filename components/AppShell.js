@@ -19,10 +19,12 @@ const STAFF_NAV_ITEMS = [
   { href: '/install', label: 'New Install' },
   { href: '/dashboard', label: 'Surveys' },
   { href: '/installations', label: 'Installations' },
+  { href: '/sites', label: 'Site History' },
 ];
 const CLIENT_VIEWER_NAV_ITEMS = [
   { href: '/dashboard', label: 'Surveys' },
   { href: '/installations', label: 'Installations' },
+  { href: '/sites', label: 'Site History' },
 ];
 const ADMIN_NAV_GROUP = {
   label: 'Admin',

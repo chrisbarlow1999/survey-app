@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
 import { InstallLocationCard } from './InstallLocationCard';
 import { SignaturePad } from './SignaturePad';
+import { AttachmentPicker } from './AttachmentPicker';
+import { uploadAttachments, newAttachmentItems, attachmentsFromExisting } from '../lib/uploadAttachments';
 
 function locationFromExisting(loc) {
   return {
@@ -48,10 +50,14 @@ export function EditInstallationForm({ installation, locationsWithUrls, clients,
   });
   const [locations, setLocations] = useState(() => locationsWithUrls.map(locationFromExisting));
   const [signatureBlob, setSignatureBlob] = useState(null);
+  const [attachments, setAttachments] = useState(() => attachmentsFromExisting(installation.attachments));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const originalPaths = (installation.locations || []).map((l) => l.photo_path).filter(Boolean);
+  const originalPaths = [
+    ...(installation.locations || []).map((l) => l.photo_path),
+    ...(installation.attachments || []).map((a) => a.path),
+  ].filter(Boolean);
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -96,6 +102,8 @@ export function EditInstallationForm({ installation, locationsWithUrls, clients,
         });
       }
 
+      const savedAttachments = await uploadAttachments(supabase, attachments);
+
       let signaturePath = installation.signature_path || null;
       if (signatureBlob) {
         const path = `signatures/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`;
@@ -120,13 +128,17 @@ export function EditInstallationForm({ installation, locationsWithUrls, clients,
         site_contact: form.siteContact,
         locations: uploadedLocations,
         additional_info: form.additionalInfo,
+        attachments: savedAttachments,
         signature_path: signaturePath,
         signed_by: form.signedBy || null,
         edit_history: [...(installation.edit_history || []), newHistoryEntry],
       }).eq('id', installation.id);
       if (updateErr) throw updateErr;
 
-      const survivingPaths = new Set(uploadedLocations.map((l) => l.photo_path).filter(Boolean));
+      const survivingPaths = new Set([
+        ...uploadedLocations.map((l) => l.photo_path).filter(Boolean),
+        ...savedAttachments.map((a) => a.path),
+      ]);
       const orphaned = originalPaths.filter((p) => !survivingPaths.has(p));
       if (orphaned.length) {
         supabase.storage.from('survey-photos').remove(orphaned).catch(() => {});
@@ -149,7 +161,7 @@ export function EditInstallationForm({ installation, locationsWithUrls, clients,
           <div className="field"><label className="req">First Name</label><input value={form.engFirst} onChange={(e) => setField('engFirst', e.target.value)} /></div>
           <div className="field"><label className="req">Last Name</label><input value={form.engLast} onChange={(e) => setField('engLast', e.target.value)} /></div>
           <div className="field"><label className="req">Phone Number</label><input type="tel" value={form.phone} onChange={(e) => setField('phone', e.target.value)} /></div>
-          <div className="field"><label className="req">Install Date</label><input type="date" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
+          <div className="field"><label className="req">Install Date</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
         </div>
         <div className="field-row">
           <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Name</label><input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} /></div>
@@ -192,6 +204,20 @@ export function EditInstallationForm({ installation, locationsWithUrls, clients,
           </div>
         </div>
         <SignaturePad onChange={setSignatureBlob} existingUrl={signatureUrl} />
+      </div>
+
+      <div className="panel">
+        <h2>Attachments</h2>
+        <p className="hint">Sign-off sheets, spec documents, or any other supporting files.</p>
+        <div className="field-row">
+          <AttachmentPicker
+            attachments={attachments}
+            onAdd={(files) => setAttachments((a) => [...a, ...newAttachmentItems(files)])}
+            onRemove={(key) => setAttachments((a) => a.filter((x) => x.key !== key))}
+            label="Files"
+            hint="PDFs, images, spreadsheets — up to 10MB each."
+          />
+        </div>
       </div>
 
       <div className="panel">

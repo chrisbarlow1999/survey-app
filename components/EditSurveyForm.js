@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
 import { LocationCard } from './LocationCard';
 import { DEFAULT_OVERLAY } from './PhotoWithOverlay';
+import { AttachmentPicker } from './AttachmentPicker';
+import { uploadAttachments, newAttachmentItems, attachmentsFromExisting } from '../lib/uploadAttachments';
 
 function locationFromExisting(loc) {
   return {
@@ -71,12 +73,14 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
     additionalInfo: survey.additional_info || '',
   });
   const [locations, setLocations] = useState(() => locationsWithUrls.map(locationFromExisting));
+  const [attachments, setAttachments] = useState(() => attachmentsFromExisting(survey.attachments));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const originalPaths = (survey.locations || [])
-    .flatMap((l) => [l.photo_path, ...(l.additional_photos || [])])
-    .filter(Boolean);
+  const originalPaths = [
+    ...(survey.locations || []).flatMap((l) => [l.photo_path, ...(l.additional_photos || [])]),
+    ...(survey.attachments || []).map((a) => a.path),
+  ].filter(Boolean);
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -155,6 +159,8 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
         });
       }
 
+      const savedAttachments = await uploadAttachments(supabase, attachments);
+
       const newHistoryEntry = { name: editorName, edited_at: new Date().toISOString() };
       const { error: updateErr } = await supabase.from('surveys').update({
         engineer_first: form.engFirst,
@@ -169,6 +175,7 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
         engineer_days: form.engDays || null,
         engineer_count: form.engCount || null,
         additional_info: form.additionalInfo,
+        attachments: savedAttachments,
         edit_history: [...(survey.edit_history || []), newHistoryEntry],
       }).eq('id', survey.id);
       if (updateErr) throw updateErr;
@@ -177,6 +184,7 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
       // Requires super admin (see migration 007) — silently skipped otherwise, the
       // save above has already succeeded either way.
       const survivingPaths = new Set();
+      savedAttachments.forEach((a) => survivingPaths.add(a.path));
       uploadedLocations.forEach((l) => {
         if (l.photo_path) survivingPaths.add(l.photo_path);
         (l.additional_photos || []).forEach((p) => survivingPaths.add(p));
@@ -203,7 +211,7 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
           <div className="field"><label className="req">First Name</label><input value={form.engFirst} onChange={(e) => setField('engFirst', e.target.value)} /></div>
           <div className="field"><label className="req">Last Name</label><input value={form.engLast} onChange={(e) => setField('engLast', e.target.value)} /></div>
           <div className="field"><label className="req">Phone Number</label><input type="tel" value={form.phone} onChange={(e) => setField('phone', e.target.value)} /></div>
-          <div className="field"><label className="req">Date of Survey</label><input type="date" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
+          <div className="field"><label className="req">Date of Survey</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
         </div>
         <div className="field-row">
           <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Name</label><input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} /></div>
@@ -245,6 +253,20 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
         <div className="field-row">
           <div className="field"><label>Engineer Days (est.)</label><input type="number" min="0" value={form.engDays} onChange={(e) => setField('engDays', e.target.value)} /></div>
           <div className="field"><label>Engineers Required</label><input type="number" min="0" value={form.engCount} onChange={(e) => setField('engCount', e.target.value)} /></div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <h2>Attachments</h2>
+        <p className="hint">Floor plans, spec sheets, or any other supporting documents.</p>
+        <div className="field-row">
+          <AttachmentPicker
+            attachments={attachments}
+            onAdd={(files) => setAttachments((a) => [...a, ...newAttachmentItems(files)])}
+            onRemove={(key) => setAttachments((a) => a.filter((x) => x.key !== key))}
+            label="Files"
+            hint="PDFs, images, spreadsheets — up to 10MB each."
+          />
         </div>
       </div>
 

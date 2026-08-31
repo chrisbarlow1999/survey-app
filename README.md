@@ -3,11 +3,18 @@
 Five-part app:
 - `/` — public site survey form. No account needed, anyone with the link can submit.
 - `/dashboard` — site survey reports view. Requires a logged-in account.
+  Paginated (25 per page), with search/client/date filters, sort options, an
+  "Archived" toggle, and CSV export. The export fetches the whole filtered set
+  rather than just the visible page.
 - `/install` — public install-completion form (proof photos once a job's finished).
   No account needed, not linked to the original survey (different engineer
   companies often do the survey vs. the install).
 - `/installations` — install confirmation reports view. Requires a logged-in
   account, same client-permission rules as `/dashboard`.
+- `/sites` — groups every survey and install confirmation by site name, so you
+  can see everything that's happened at a location in one place. Purely a text
+  match on the name (trimmed, lowercased) — there's no real database link
+  between a survey and its later install, by design (see `/install` above).
 - `/admin/clients` — add/rename/delete clients, set each one's notification inbox.
 - `/admin/accounts` — create accounts, manage roles and client access, reset
   passwords, deactivate/reactivate.
@@ -20,9 +27,10 @@ The left-hand sidebar shows a different set of links depending on who's looking:
 anyone not logged in (engineers) only ever sees New Survey / New Install — there's
 no client-side hiding to work around, those are genuinely the only two pages that
 exist in the public route group (`app/(public)/`). A logged-in internal account
-(User or Super Admin) also sees Surveys and Installations, plus New Survey/New
-Install; a Client Viewer sees only Surveys and Installations, nothing else — they
-have no reason to submit forms. Only a super admin additionally sees an expandable
+(User or Super Admin) also sees Surveys, Installations, and Sites, plus New
+Survey/New Install; a Client Viewer sees Surveys, Installations, and Sites,
+nothing else — they have no reason to submit forms. Only a super admin
+additionally sees an expandable
 Admin section (Clients / Accounts / Activity). That check happens once, server-side, in
 `app/(app)/layout.js`.
 
@@ -99,6 +107,40 @@ Admin section (Clients / Accounts / Activity). That check happens once, server-s
 21. Also run `supabase/014_admin_action_log.sql` — creates the `admin_actions`
     table behind `/admin/activity` (who created accounts, changed roles, reset
     passwords, or edited clients).
+22. Also run `supabase/015_archive.sql` — adds `archived_at` to `surveys` and
+    `installations`, powering the Archive/Restore buttons (a soft delete: the
+    record is hidden from the default list but recoverable, unlike Delete).
+23. Also run `supabase/016_attachments.sql` — adds an `attachments` column to
+    both tables for record-level files (floor plans, PDFs, spec sheets) that
+    sit alongside the per-location photos. Reuses the `survey-photos` bucket
+    under an `attachments/` prefix, so no storage changes needed.
+
+## Client PDF vs Internal PDF
+
+Each report has two export buttons, both producing a PDF via the browser's
+print dialog:
+
+- **Client PDF** — the version to send to a client for approval. Hides
+  internal-only fields: the engineer's phone number, "Engineer Days (est.)",
+  "Engineers Required", and the free-text "Additional Information" block
+  (which tends to collect internal commentary not meant for clients).
+- **Internal PDF** — everything, unchanged.
+
+Both open with a cover page (report type, site, client, address, date), then
+one page per screen location.
+
+The switch works by flagging the document with a `client-print` class for the
+duration of the print dialog; the print stylesheet hides anything marked
+`internal-only` while that flag is set. To make a field client-hidden, add
+`className="... internal-only"` to it — nothing else needs changing.
+
+Note: the per-location **Notes** field (wall construction, extra support
+needed) *is* included in the Client PDF, on the basis that it's technical
+detail a client needs when approving an install. Mark it `internal-only` too
+if that's not what you want.
+
+Attachments (floor plans etc.) are added by PMs from the Edit screen, not by
+engineers on the public form — engineers don't have those documents.
 
 ## Creating accounts
 

@@ -3,7 +3,11 @@ import { SCREEN_SIZES } from '../../../../lib/screenSizes';
 import { BlueprintDiagram } from '../../../../components/BlueprintDiagram';
 import { PhotoWithOverlay } from '../../../../components/PhotoWithOverlay';
 import { DeleteSurveyButton } from '../../../../components/DeleteSurveyButton';
-import { PrintButton } from '../../../../components/PrintButton';
+import { PrintButton, ClientPrintButton } from '../../../../components/PrintButton';
+import { ReportCoverPage } from '../../../../components/ReportCoverPage';
+import { ArchiveButton } from '../../../../components/ArchiveButton';
+import { formatBytes } from '../../../../components/AttachmentPicker';
+import { formatDate, formatDateTime } from '../../../../lib/formatDate';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,39 +59,79 @@ export default async function ReportPage({ params }) {
     })
   );
 
+  const attachments = await Promise.all(
+    (survey.attachments || []).map(async (a) => {
+      const { data } = await supabase.storage.from('survey-photos').createSignedUrl(a.path, 60 * 60);
+      return { ...a, url: data?.signedUrl || null };
+    })
+  );
+
   return (
     <main>
       <a className="back-link" href="/dashboard">&larr; Back to Dashboard</a>
       <div className="toolbar no-print">
         {canEdit && <a className="btn btn-ghost" href={`/dashboard/${survey.id}/edit`}>Edit Survey</a>}
-        <PrintButton />
+        <ClientPrintButton />
+        <PrintButton label="Internal PDF" />
+        {canEdit && <ArchiveButton table="surveys" recordId={survey.id} archived={Boolean(survey.archived_at)} />}
         {canEdit && (
           <DeleteSurveyButton
             surveyId={survey.id}
             photoPaths={[
               ...(survey.locations || []).map((l) => l.photo_path).filter(Boolean),
               ...(survey.locations || []).flatMap((l) => l.additional_photos || []),
+              ...(survey.attachments || []).map((a) => a.path).filter(Boolean),
             ]}
           />
         )}
       </div>
 
+      {survey.archived_at && (
+        <div className="archived-banner no-print">
+          This survey is archived — it's hidden from the main list. Use Restore to bring it back.
+        </div>
+      )}
+
+      <ReportCoverPage
+        title="Site Survey Report"
+        siteName={survey.site_location}
+        clientName={survey.clients?.name}
+        date={formatDate(survey.survey_date)}
+        address={survey.address}
+      />
+
       <div className="panel" style={{ marginTop: 14 }}>
-        <div className="print-only print-title">Site Survey Report</div>
         <h2 style={{ fontSize: 20 }}>{survey.site_location}{survey.clients?.name ? <span className="client-badge" style={{ marginLeft: 10, verticalAlign: 'middle' }}>{survey.clients.name}</span> : null}</h2>
         <div className="kv-grid" style={{ marginTop: 12 }}>
           <div className="kv"><div className="k">Engineer</div><div className="v">{survey.engineer_first} {survey.engineer_last}</div></div>
-          <div className="kv"><div className="k">Phone</div><div className="v">{survey.phone}</div></div>
-          <div className="kv"><div className="k">Survey Date</div><div className="v">{survey.survey_date}</div></div>
+          <div className="kv internal-only"><div className="k">Phone</div><div className="v">{survey.phone}</div></div>
+          <div className="kv"><div className="k">Survey Date</div><div className="v">{formatDate(survey.survey_date)}</div></div>
           <div className="kv"><div className="k">Site Contact</div><div className="v">{survey.site_contact || '—'}</div></div>
           <div className="kv"><div className="k">Address</div><div className="v">{survey.address || '—'}</div></div>
-          <div className="kv"><div className="k">Engineer Days (est.)</div><div className="v">{survey.engineer_days || '—'}</div></div>
-          <div className="kv"><div className="k">Engineers Required</div><div className="v">{survey.engineer_count || '—'}</div></div>
+          <div className="kv internal-only"><div className="k">Engineer Days (est.)</div><div className="v">{survey.engineer_days || '—'}</div></div>
+          <div className="kv internal-only"><div className="k">Engineers Required</div><div className="v">{survey.engineer_count || '—'}</div></div>
         </div>
         {survey.additional_info && (
-          <div className="kv" style={{ borderColor: 'var(--accent-cyan)' }}>
+          <div className="kv internal-only" style={{ borderColor: 'var(--accent-cyan)' }}>
             <div className="k">Additional Information</div>
             <div className="v">{survey.additional_info}</div>
+          </div>
+        )}
+        {attachments.length > 0 && (
+          <div className="kv" style={{ borderColor: 'var(--accent-cyan)' }}>
+            <div className="k">Attachments</div>
+            <div className="attachment-list" style={{ marginTop: 6 }}>
+              {attachments.map((a, i) => (
+                <div className="attachment-row" key={i}>
+                  {a.url ? (
+                    <a className="attachment-name" href={a.url} target="_blank" rel="noreferrer">{a.name}</a>
+                  ) : (
+                    <span className="attachment-name">{a.name}</span>
+                  )}
+                  <span className="attachment-size">{formatBytes(a.size)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         {canEdit && survey.edit_history && survey.edit_history.length > 0 && (
@@ -95,7 +139,7 @@ export default async function ReportPage({ params }) {
             <div className="k">Edit History</div>
             <ul>
               {[...survey.edit_history].reverse().map((e, i) => (
-                <li key={i}>{e.name} — {new Date(e.edited_at).toLocaleString()}</li>
+                <li key={i}>{e.name} — {formatDateTime(e.edited_at)}</li>
               ))}
             </ul>
           </div>
@@ -113,7 +157,7 @@ export default async function ReportPage({ params }) {
           <div className={`report-loc${i === 0 ? ' first-loc' : ''}`} key={i}>
             <div className="print-only print-header">
               <span>{survey.site_location}</span>
-              <span>{survey.survey_date}</span>
+              <span>{formatDate(survey.survey_date)}</span>
             </div>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, marginBottom: 12 }}>
               Location #{i + 1}{sizeInfo ? ' — ' + sizeInfo.label : ''}

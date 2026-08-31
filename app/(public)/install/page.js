@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { createClient } from '../../../lib/supabaseClient';
 import { InstallLocationCard } from '../../../components/InstallLocationCard';
 import { SignaturePad } from '../../../components/SignaturePad';
+import { AttachmentPicker } from '../../../components/AttachmentPicker';
+import { uploadAttachments, newAttachmentItems } from '../../../lib/uploadAttachments';
 
 function freshLocation() {
   return {
@@ -25,6 +27,7 @@ export default function NewInstallationPage() {
   const [clients, setClients] = useState([]);
   const [locations, setLocations] = useState([freshLocation()]);
   const [signatureBlob, setSignatureBlob] = useState(null);
+  const [attachments, setAttachments] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -79,6 +82,8 @@ export default function NewInstallationPage() {
         });
       }
 
+      const savedAttachments = await uploadAttachments(supabase, attachments);
+
       let signaturePath = null;
       if (signatureBlob) {
         const path = `signatures/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`;
@@ -100,6 +105,7 @@ export default function NewInstallationPage() {
         site_contact: form.siteContact,
         locations: uploadedLocations,
         additional_info: form.additionalInfo,
+        attachments: savedAttachments,
         signature_path: signaturePath,
         signed_by: form.signedBy || null,
       });
@@ -140,7 +146,7 @@ export default function NewInstallationPage() {
             <div className="field"><label className="req">First Name</label><input value={form.engFirst} onChange={(e) => setField('engFirst', e.target.value)} /></div>
             <div className="field"><label className="req">Last Name</label><input value={form.engLast} onChange={(e) => setField('engLast', e.target.value)} /></div>
             <div className="field"><label className="req">Phone Number</label><input type="tel" value={form.phone} onChange={(e) => setField('phone', e.target.value)} /></div>
-            <div className="field"><label className="req">Install Date</label><input type="date" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
+            <div className="field"><label className="req">Install Date</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
           </div>
           <div className="field-row">
             <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Name</label><input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} /></div>
@@ -185,6 +191,20 @@ export default function NewInstallationPage() {
             </div>
           </div>
           <SignaturePad onChange={setSignatureBlob} />
+        </div>
+
+        <div className="panel">
+          <h2>Attachments</h2>
+          <p className="hint">Sign-off sheets, spec documents, or any other supporting files.</p>
+          <div className="field-row">
+            <AttachmentPicker
+              attachments={attachments}
+              onAdd={(files) => setAttachments((a) => [...a, ...newAttachmentItems(files)])}
+              onRemove={(key) => setAttachments((a) => a.filter((x) => x.key !== key))}
+              label="Files"
+              hint="PDFs, images, spreadsheets — up to 10MB each."
+            />
+          </div>
         </div>
 
         <div className="panel">
