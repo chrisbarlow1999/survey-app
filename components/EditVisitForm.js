@@ -3,77 +3,96 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
-import { InstallAreaCard } from './InstallAreaCard';
+import { VisitIssueCard } from './VisitIssueCard';
 import { SignaturePad } from './SignaturePad';
 import { AttachmentPicker } from './AttachmentPicker';
 import { uploadAttachments, newAttachmentItems, attachmentsFromExisting } from '../lib/uploadAttachments';
-import {
-  freshInstallArea, addScreenToInstallArea, removeScreenFromInstallArea,
-  installAreaFromExisting, installAreaToStored, installPhotoPaths,
-} from '../lib/installArea';
 
-export function EditInstallationForm({ installation, areasWithUrls, clients, editorName, signatureUrl }) {
+function issueFromExisting(issue) {
+  return {
+    id: 'issue_' + Math.random().toString(36).slice(2, 9),
+    title: issue.title || '',
+    problemFile: null,
+    problemPreview: issue.problemUrl || null,
+    problemPath: issue.problem_photo_path || null,
+    fix: issue.fix || '',
+    workingFile: null,
+    workingPreview: issue.workingUrl || null,
+    workingPath: issue.working_photo_path || null,
+    resolved: issue.resolved || '',
+  };
+}
+
+function freshIssue() {
+  return {
+    id: 'issue_' + Math.random().toString(36).slice(2, 9),
+    title: '',
+    problemFile: null,
+    problemPreview: null,
+    problemPath: null,
+    fix: '',
+    workingFile: null,
+    workingPreview: null,
+    workingPath: null,
+    resolved: '',
+  };
+}
+
+export function EditVisitForm({ visit, issuesWithUrls, clients, editorName, signatureUrl }) {
   const supabase = createClient();
   const router = useRouter();
 
   const [form, setForm] = useState({
-    engFirst: installation.engineer_first || '',
-    engLast: installation.engineer_last || '',
-    phone: installation.phone || '',
-    date: installation.install_date || '',
-    siteLocation: installation.site_location || '',
-    address: installation.address || '',
-    siteContact: installation.site_contact || '',
-    clientId: installation.client_id || '',
-    additionalInfo: installation.additional_info || '',
-    signedBy: installation.signed_by || '',
+    engFirst: visit.engineer_first || '',
+    engLast: visit.engineer_last || '',
+    phone: visit.phone || '',
+    date: visit.visit_date || '',
+    siteLocation: visit.site_location || '',
+    address: visit.address || '',
+    siteContact: visit.site_contact || '',
+    clientId: visit.client_id || '',
+    additionalInfo: visit.additional_info || '',
   });
-  const [areas, setAreas] = useState(() => areasWithUrls.map((a) => installAreaFromExisting(a, a.photoUrls)));
+  const [issues, setIssues] = useState(() => issuesWithUrls.map(issueFromExisting));
   const [signatureBlob, setSignatureBlob] = useState(null);
-  const [attachments, setAttachments] = useState(() => attachmentsFromExisting(installation.attachments));
+  const [attachments, setAttachments] = useState(() => attachmentsFromExisting(visit.attachments));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // The signature is handled separately (replaced only when a new one is drawn),
+  // so it's deliberately not part of the orphan sweep.
   const originalPaths = [
-    ...installPhotoPaths(installation.locations),
-    ...(installation.attachments || []).map((a) => a.path),
+    ...(visit.issues || []).flatMap((i) => [i.problem_photo_path, i.working_photo_path]),
+    ...(visit.attachments || []).map((a) => a.path),
   ].filter(Boolean);
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
   }
-  function updateArea(id, fn) {
-    setAreas((list) => list.map((a) => (a.id === id ? fn(a) : a)));
+  function setIssueField(id, key, value) {
+    setIssues((list) => list.map((x) => (x.id === id ? { ...x, [key]: value } : x)));
   }
-  function setAreaField(id, key, value) {
-    updateArea(id, (a) => ({ ...a, [key]: value }));
+  function addIssue() {
+    setIssues((list) => [...list, freshIssue()]);
   }
-  function addArea() {
-    setAreas((list) => [...list, freshInstallArea()]);
+  function removeIssue(id) {
+    setIssues((list) => list.filter((x) => x.id !== id));
   }
-  function removeArea(id) {
-    setAreas((list) => list.filter((a) => a.id !== id));
-  }
-  function addScreen(id) {
-    updateArea(id, addScreenToInstallArea);
-  }
-  function removeScreen(id, screenId) {
-    updateArea(id, (a) => removeScreenFromInstallArea(a, screenId));
-  }
-  function setScreenField(id, screenId, key, value) {
-    updateArea(id, (a) => ({
-      ...a,
-      screens: a.screens.map((s) => (s.id === screenId ? { ...s, [key]: value } : s)),
-    }));
-  }
-  function handleScreenPhoto(id, screenId, file) {
+  function handlePhoto(id, which, file) {
     if (!file) return;
-    updateArea(id, (a) => ({
-      ...a,
-      screens: a.screens.map((s) => (s.id === screenId
-        ? { ...s, photoFile: file, photoPreview: URL.createObjectURL(file) }
-        : s)),
-    }));
+    const fileKey = which === 'problem' ? 'problemFile' : 'workingFile';
+    const previewKey = which === 'problem' ? 'problemPreview' : 'workingPreview';
+    setIssues((list) => list.map((x) => (
+      x.id === id ? { ...x, [fileKey]: file, [previewKey]: URL.createObjectURL(file) } : x
+    )));
+  }
+
+  async function uploadPhoto(file) {
+    const safeName = file.name.replace(/[^\w.\-]/g, '_');
+    const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
+    const { error: upErr } = await supabase.storage.from('survey-photos').upload(path, file);
+    if (upErr) throw upErr;
+    return path;
   }
 
   async function handleSubmit(e) {
@@ -85,29 +104,29 @@ export function EditInstallationForm({ installation, areasWithUrls, clients, edi
     }
     setSubmitting(true);
     try {
-      const uploadedAreas = [];
-      for (const area of areas) {
-        const screenPhotoPaths = [];
-        for (const screen of area.screens) {
-          let photoPath = screen.photoPath || null;
-          if (screen.photoFile) {
-            const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${screen.photoFile.name}`;
-            const { error: upErr } = await supabase.storage.from('survey-photos').upload(path, screen.photoFile);
-            if (upErr) throw upErr;
-            photoPath = path;
-          }
-          screenPhotoPaths.push(photoPath);
-        }
-        uploadedAreas.push(installAreaToStored(area, screenPhotoPaths));
+      const savedIssues = [];
+      for (const issue of issues) {
+        let problemPath = issue.problemPath || null;
+        if (issue.problemFile) problemPath = await uploadPhoto(issue.problemFile);
+        let workingPath = issue.workingPath || null;
+        if (issue.workingFile) workingPath = await uploadPhoto(issue.workingFile);
+        savedIssues.push({
+          title: issue.title,
+          problem_photo_path: problemPath,
+          fix: issue.fix,
+          working_photo_path: workingPath,
+          resolved: issue.resolved,
+        });
       }
+
       const savedAttachments = await uploadAttachments(supabase, attachments);
 
-      let signaturePath = installation.signature_path || null;
+      let signaturePath = visit.signature_path || null;
       if (signatureBlob) {
         const path = `signatures/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`;
         const { error: upErr } = await supabase.storage.from('survey-photos').upload(path, signatureBlob, { contentType: 'image/png' });
         if (upErr) throw upErr;
-        const oldSignaturePath = installation.signature_path;
+        const oldSignaturePath = visit.signature_path;
         signaturePath = path;
         if (oldSignaturePath) {
           supabase.storage.from('survey-photos').remove([oldSignaturePath]).catch(() => {});
@@ -115,34 +134,36 @@ export function EditInstallationForm({ installation, areasWithUrls, clients, edi
       }
 
       const newHistoryEntry = { name: editorName, edited_at: new Date().toISOString() };
-      const { error: updateErr } = await supabase.from('installations').update({
+      const { error: updateErr } = await supabase.from('visits').update({
         engineer_first: form.engFirst,
         engineer_last: form.engLast,
         phone: form.phone,
-        install_date: form.date,
+        visit_date: form.date,
         site_location: form.siteLocation,
         client_id: form.clientId,
         address: form.address,
         site_contact: form.siteContact,
-        locations: uploadedAreas,
+        issues: savedIssues,
         additional_info: form.additionalInfo,
         attachments: savedAttachments,
         signature_path: signaturePath,
-        signed_by: form.signedBy || null,
-        edit_history: [...(installation.edit_history || []), newHistoryEntry],
-      }).eq('id', installation.id);
+        edit_history: [...(visit.edit_history || []), newHistoryEntry],
+      }).eq('id', visit.id);
       if (updateErr) throw updateErr;
 
+      // Best-effort cleanup of anything no longer referenced. Requires super
+      // admin (storage delete policy) — silently skipped otherwise, the save
+      // above has already succeeded either way.
       const survivingPaths = new Set([
-        ...installPhotoPaths(uploadedAreas),
+        ...savedIssues.flatMap((i) => [i.problem_photo_path, i.working_photo_path]),
         ...savedAttachments.map((a) => a.path),
-      ]);
+      ].filter(Boolean));
       const orphaned = originalPaths.filter((p) => !survivingPaths.has(p));
       if (orphaned.length) {
         supabase.storage.from('survey-photos').remove(orphaned).catch(() => {});
       }
 
-      router.push(`/installations/${installation.id}`);
+      router.push(`/visits/${visit.id}`);
       router.refresh();
     } catch (err) {
       console.error(err);
@@ -159,7 +180,7 @@ export function EditInstallationForm({ installation, areasWithUrls, clients, edi
           <div className="field"><label className="req">First Name</label><input value={form.engFirst} onChange={(e) => setField('engFirst', e.target.value)} /></div>
           <div className="field"><label className="req">Last Name</label><input value={form.engLast} onChange={(e) => setField('engLast', e.target.value)} /></div>
           <div className="field"><label className="req">Phone Number</label><input type="tel" value={form.phone} onChange={(e) => setField('phone', e.target.value)} /></div>
-          <div className="field"><label className="req">Install Date</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
+          <div className="field"><label className="req">Visit Date</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
         </div>
         <div className="field-row">
           <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Name</label><input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} /></div>
@@ -178,39 +199,29 @@ export function EditInstallationForm({ installation, areasWithUrls, clients, edi
       </div>
 
       <div className="panel">
-        <h2>Installed Screens</h2>
-        <h2>Installed Screens</h2>
-        {areas.map((area, i) => (
-          <InstallAreaCard
-            key={area.id}
-            area={area}
+        <h2>Issues</h2>
+        {issues.map((issue, i) => (
+          <VisitIssueCard
+            key={issue.id}
+            issue={issue}
             index={i}
             showRemove={i > 0}
-            onRemove={() => removeArea(area.id)}
-            onChange={(key, value) => setAreaField(area.id, key, value)}
-            onAddScreen={() => addScreen(area.id)}
-            onRemoveScreen={(screenId) => removeScreen(area.id, screenId)}
-            onScreenChange={(screenId, key, value) => setScreenField(area.id, screenId, key, value)}
-            onScreenPhotoChange={(screenId, file) => handleScreenPhoto(area.id, screenId, file)}
+            onRemove={() => removeIssue(issue.id)}
+            onChange={(key, value) => setIssueField(issue.id, key, value)}
+            onPhotoChange={(which, file) => handlePhoto(issue.id, which, file)}
           />
         ))}
-        <button type="button" className="btn-add" onClick={addArea}>+ Add Area</button>
+        <button type="button" className="btn-add" onClick={addIssue}>+ Add Issue</button>
       </div>
 
       <div className="panel">
-        <h2>Site Sign-Off (optional)</h2>
-        <div className="field-row">
-          <div className="field" style={{ flex: '1 1 100%' }}>
-            <label>Signed By (name)</label>
-            <input value={form.signedBy} onChange={(e) => setField('signedBy', e.target.value)} />
-          </div>
-        </div>
+        <h2>Engineer Sign-Off</h2>
         <SignaturePad onChange={setSignatureBlob} existingUrl={signatureUrl} />
       </div>
 
       <div className="panel">
         <h2>Attachments</h2>
-        <p className="hint">Sign-off sheets, spec documents, or any other supporting files.</p>
+        <p className="hint">Parts lists, reports, or any other supporting files.</p>
         <div className="field-row">
           <AttachmentPicker
             attachments={attachments}
@@ -229,7 +240,7 @@ export function EditInstallationForm({ installation, areasWithUrls, clients, edi
 
       {error && <p className="error-text">{error}</p>}
       <div className="actions-row">
-        <button className="btn btn-ghost" type="button" onClick={() => router.push(`/installations/${installation.id}`)}>Cancel</button>
+        <button className="btn btn-ghost" type="button" onClick={() => router.push(`/visits/${visit.id}`)}>Cancel</button>
         <button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Saving…' : 'Save Changes'}</button>
       </div>
     </form>

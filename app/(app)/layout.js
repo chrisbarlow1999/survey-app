@@ -1,6 +1,7 @@
 import { createClient } from '../../lib/supabaseServer';
 import { AppShell } from '../../components/AppShell';
 import { LogoutButton } from '../../components/LogoutButton';
+import { buildNav } from '../../lib/nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,35 +17,8 @@ export default async function AppLayout({ children }) {
     accountName = profile?.full_name || profile?.email || null;
   }
 
-  let navItems;
-  if (role === 'client_viewer') {
-    navItems = [
-      { href: '/dashboard', label: 'Surveys' },
-      { href: '/installations', label: 'Installations' },
-      { href: '/sites', label: 'Site History' },
-    ];
-  } else {
-    navItems = [
-      { href: '/', label: 'New Survey' },
-      { href: '/install', label: 'New Install' },
-      { href: '/dashboard', label: 'Surveys' },
-      { href: '/installations', label: 'Installations' },
-      { href: '/sites', label: 'Site History' },
-    ];
-    if (role === 'super_admin') {
-      navItems.push({
-        label: 'Admin',
-        children: [
-          { href: '/admin/clients', label: 'Clients' },
-          { href: '/admin/accounts', label: 'Accounts' },
-          { href: '/admin/activity', label: 'Activity' },
-        ],
-      });
-    }
-  }
-
   return (
-    <AppShell navItems={navItems} footer={<LogoutButton name={accountName} />}>
+    <AppShell navItems={buildNav(role)} footer={<LogoutButton name={accountName} />}>
       {children}
     </AppShell>
   );

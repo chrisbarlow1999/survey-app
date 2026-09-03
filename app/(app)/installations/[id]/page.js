@@ -3,8 +3,10 @@ import { DeleteInstallationButton } from '../../../../components/DeleteInstallat
 import { PrintButton, ClientPrintButton } from '../../../../components/PrintButton';
 import { ReportCoverPage } from '../../../../components/ReportCoverPage';
 import { ArchiveButton } from '../../../../components/ArchiveButton';
-import { formatBytes } from '../../../../components/AttachmentPicker';
+import { formatBytes } from '../../../../lib/formatBytes';
 import { formatDate, formatDateTime } from '../../../../lib/formatDate';
+import { ProjectLinkPicker } from '../../../../components/ProjectLinkPicker';
+import { installPhotoPaths } from '../../../../lib/installArea';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,17 +34,26 @@ export default async function InstallationReportPage({ params }) {
   }
 
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: myProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: myProfile } = await supabase.from('profiles').select('full_name, email, role').eq('id', user.id).single();
   const canEdit = myProfile?.role !== 'client_viewer';
+  const actorName = myProfile?.full_name || myProfile?.email || 'Unknown user';
 
-  const locationsWithUrls = await Promise.all(
-    (installation.locations || []).map(async (loc) => {
-      let photoUrl = null;
-      if (loc.photo_path) {
-        const { data } = await supabase.storage.from('survey-photos').createSignedUrl(loc.photo_path, 60 * 60);
-        photoUrl = data?.signedUrl || null;
-      }
-      return { ...loc, photoUrl };
+  // Only same-client projects are offered by the link picker below.
+  const { data: linkableProjects } = canEdit && installation.client_id
+    ? await supabase.from('projects').select('id, title, reference').eq('client_id', installation.client_id).is('archived_at', null).order('created_at', { ascending: false })
+    : { data: [] };
+
+  // Signed URLs for every proof photo, one per screen within each area.
+  const areasWithUrls = await Promise.all(
+    (installation.locations || []).map(async (area) => {
+      const screens = await Promise.all(
+        (area.screens || []).map(async (s) => {
+          if (!s.photo_path) return { ...s, photoUrl: null };
+          const { data } = await supabase.storage.from('survey-photos').createSignedUrl(s.photo_path, 60 * 60);
+          return { ...s, photoUrl: data?.signedUrl || null };
+        })
+      );
+      return { ...area, screens };
     })
   );
 
@@ -71,7 +82,7 @@ export default async function InstallationReportPage({ params }) {
           <DeleteInstallationButton
             installationId={installation.id}
             photoPaths={[
-              ...(installation.locations || []).map((l) => l.photo_path).filter(Boolean),
+              ...installPhotoPaths(installation.locations),
               ...(installation.signature_path ? [installation.signature_path] : []),
               ...(installation.attachments || []).map((a) => a.path).filter(Boolean),
             ]}
@@ -89,14 +100,12 @@ export default async function InstallationReportPage({ params }) {
         title="Install Confirmation"
         siteName={installation.site_location}
         clientName={installation.clients?.name}
-        date={formatDate(installation.install_date)}
-        address={installation.address}
       />
 
-      <div className="panel" style={{ marginTop: 14 }}>
+      <div className="panel report-summary" style={{ marginTop: 14 }}>
         <h2 style={{ fontSize: 20 }}>{installation.site_location}{installation.clients?.name ? <span className="client-badge" style={{ marginLeft: 10, verticalAlign: 'middle' }}>{installation.clients.name}</span> : null}</h2>
         <div className="kv-grid" style={{ marginTop: 12 }}>
-          <div className="kv"><div className="k">Engineer</div><div className="v">{installation.engineer_first} {installation.engineer_last}</div></div>
+          <div className="kv internal-only"><div className="k">Engineer</div><div className="v">{installation.engineer_first} {installation.engineer_last}</div></div>
           <div className="kv internal-only"><div className="k">Phone</div><div className="v">{installation.phone}</div></div>
           <div className="kv"><div className="k">Install Date</div><div className="v">{formatDate(installation.install_date)}</div></div>
           <div className="kv"><div className="k">Site Contact</div><div className="v">{installation.site_contact || '—'}</div></div>
@@ -132,6 +141,16 @@ export default async function InstallationReportPage({ params }) {
             {signatureUrl && <img src={signatureUrl} alt="Signature" className="signature-existing-img" />}
           </div>
         )}
+        {canEdit && (
+          <ProjectLinkPicker
+            table="installations"
+            recordId={installation.id}
+            currentProjectId={installation.project_id}
+            projects={linkableProjects || []}
+            actorName={actorName}
+            recordLabel={`Install — ${installation.site_location || "Untitled site"}`}
+          />
+        )}
         {canEdit && installation.edit_history && installation.edit_history.length > 0 && (
           <div className="edit-history no-print">
             <div className="k">Edit History</div>
@@ -145,29 +164,35 @@ export default async function InstallationReportPage({ params }) {
       </div>
 
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '20px 0 10px' }}>
-        Installed Screens ({locationsWithUrls.length})
+        Installed Screens ({areasWithUrls.length} area{areasWithUrls.length !== 1 ? 's' : ''})
       </h2>
-      {locationsWithUrls.map((loc, i) => (
-        <div className={`report-loc${i === 0 ? ' first-loc' : ''}`} key={i}>
+      {areasWithUrls.map((area, i) => (
+        <div className="report-loc" key={i}>
           <div className="print-only print-header">
             <span>{installation.site_location}</span>
             <span>{formatDate(installation.install_date)}</span>
           </div>
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, marginBottom: 12 }}>
-            Screen #{i + 1}{loc.label ? ' — ' + loc.label : ''}
+            Area #{i + 1}{area.area_name ? ' — ' + area.area_name : ''}
+            <span className="area-screen-count">{(area.screens || []).length} screen{(area.screens || []).length !== 1 ? 's' : ''}</span>
           </div>
-          <div className="kv-grid">
-            <div className="kv"><div className="k">Installed</div><div className="v">{pill(loc.installed)}</div></div>
-          </div>
-          {loc.notes && (
-            <div className="kv" style={{ borderColor: 'var(--accent-cyan)' }}>
-              <div className="k">Notes</div>
-              <div className="v">{loc.notes}</div>
+          {(area.screens || []).map((screen, si) => (
+            <div className="report-screen" key={si}>
+              <div className="report-screen-num">Screen {si + 1}</div>
+              <div className="kv-grid">
+                <div className="kv"><div className="k">Installed</div><div className="v">{pill(screen.installed)}</div></div>
+              </div>
+              {screen.notes && (
+                <div className="kv" style={{ borderColor: 'var(--accent-cyan)' }}>
+                  <div className="k">Notes</div>
+                  <div className="v">{screen.notes}</div>
+                </div>
+              )}
+              {screen.photoUrl && (
+                <img src={screen.photoUrl} alt={`Proof photo — area ${i + 1}, screen ${si + 1}`} className="install-proof-photo" />
+              )}
             </div>
-          )}
-          {loc.photoUrl && (
-            <img src={loc.photoUrl} alt={`Proof photo — screen ${i + 1}`} className="install-proof-photo" />
-          )}
+          ))}
         </div>
       ))}
     </main>

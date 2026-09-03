@@ -1,0 +1,170 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '../lib/supabaseClient';
+import { logProjectActivity } from '../lib/logProjectActivity';
+import { formatDate } from '../lib/formatDate';
+
+// Tasks are only ever assignable to people with accounts — the field engineers
+// don't have any, by design. So "assigned to" here means the internal person
+// responsible for chasing it, not whoever physically attends site.
+export function ProjectTaskList({ projectId, tasks, assignees, actorName, readOnly }) {
+  const supabase = createClient();
+  const router = useRouter();
+
+  const [newTitle, setNewTitle] = useState('');
+  const [newAssignee, setNewAssignee] = useState('');
+  const [newDue, setNewDue] = useState('');
+  const [busyId, setBusyId] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState('');
+
+  const open = tasks.filter((t) => !t.completed_at);
+  const done = tasks.filter((t) => t.completed_at);
+
+  async function addTask(e) {
+    e.preventDefault();
+    const title = newTitle.trim();
+    if (!title) return;
+    setAdding(true);
+    setError('');
+    // Append to the end of the open list rather than the very end, so a new
+    // task doesn't sort below everything that's already been completed.
+    const position = tasks.length ? Math.max(...tasks.map((t) => t.position || 0)) + 1 : 0;
+    const { error: insertErr } = await supabase.from('project_tasks').insert({
+      project_id: projectId,
+      title,
+      assignee_id: newAssignee || null,
+      due_date: newDue || null,
+      position,
+    });
+    if (insertErr) {
+      console.error(insertErr);
+      setError('Could not add that task.');
+      setAdding(false);
+      return;
+    }
+    await logProjectActivity(supabase, { projectId, actorName, action: 'Task added', detail: title });
+    setNewTitle('');
+    setNewAssignee('');
+    setNewDue('');
+    setAdding(false);
+    router.refresh();
+  }
+
+  async function toggleTask(task) {
+    setBusyId(task.id);
+    setError('');
+    const completing = !task.completed_at;
+    const { error: updateErr } = await supabase
+      .from('project_tasks')
+      .update({
+        completed_at: completing ? new Date().toISOString() : null,
+        completed_by: completing ? actorName : null,
+      })
+      .eq('id', task.id);
+    if (updateErr) {
+      console.error(updateErr);
+      setError('Could not update that task.');
+      setBusyId(null);
+      return;
+    }
+    await logProjectActivity(supabase, {
+      projectId,
+      actorName,
+      action: completing ? 'Task completed' : 'Task reopened',
+      detail: task.title,
+    });
+    setBusyId(null);
+    router.refresh();
+  }
+
+  async function deleteTask(task) {
+    if (!confirm(`Delete "${task.title}"? This can't be undone.`)) return;
+    setBusyId(task.id);
+    setError('');
+    const { error: delErr } = await supabase.from('project_tasks').delete().eq('id', task.id);
+    if (delErr) {
+      console.error(delErr);
+      setError('Could not delete that task.');
+      setBusyId(null);
+      return;
+    }
+    await logProjectActivity(supabase, { projectId, actorName, action: 'Task deleted', detail: task.title });
+    setBusyId(null);
+    router.refresh();
+  }
+
+  function renderTask(task) {
+    const overdue = !task.completed_at && task.due_date && new Date(task.due_date) < new Date(new Date().toDateString());
+    return (
+      <div className={`task-row${task.completed_at ? ' done' : ''}`} key={task.id}>
+        <button
+          type="button"
+          className={`task-check${task.completed_at ? ' on' : ''}`}
+          onClick={() => toggleTask(task)}
+          disabled={readOnly || busyId === task.id}
+          aria-label={task.completed_at ? 'Reopen task' : 'Mark task complete'}
+        >
+          {task.completed_at ? '✓' : ''}
+        </button>
+        <div className="task-body">
+          <div className="task-title">{task.title}</div>
+          <div className="task-meta">
+            {task.assignee?.full_name || task.assignee?.email || 'Unassigned'}
+            {task.due_date && (
+              <span className={overdue ? 'task-overdue' : ''}> · Due {formatDate(task.due_date)}</span>
+            )}
+            {task.completed_at && task.completed_by ? ` · Done by ${task.completed_by}` : ''}
+          </div>
+        </div>
+        {!readOnly && (
+          <button type="button" className="remove" onClick={() => deleteTask(task)} disabled={busyId === task.id}>
+            Delete
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="panel">
+      <h2>Tasks {tasks.length > 0 && <span className="area-screen-count">{open.length} open / {tasks.length}</span>}</h2>
+
+      {!readOnly && (
+        <form className="task-add-row" onSubmit={addTask}>
+          <input
+            type="text"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            placeholder="Add a task…"
+          />
+          <select value={newAssignee} onChange={(e) => setNewAssignee(e.target.value)} title="Assign to">
+            <option value="">Unassigned</option>
+            {assignees.map((a) => (
+              <option key={a.id} value={a.id}>{a.full_name || a.email}</option>
+            ))}
+          </select>
+          <input type="date" min="2000-01-01" max="2100-12-31" value={newDue} onChange={(e) => setNewDue(e.target.value)} title="Due date" />
+          <button className="btn btn-primary" type="submit" disabled={adding || !newTitle.trim()}>
+            {adding ? 'Adding…' : 'Add'}
+          </button>
+        </form>
+      )}
+
+      {error && <p className="error-text">{error}</p>}
+
+      {tasks.length === 0 && <div className="empty-state">No tasks on this project yet.</div>}
+
+      {open.length > 0 && <div className="task-list">{open.map(renderTask)}</div>}
+
+      {done.length > 0 && (
+        <>
+          <div className="task-group-label">Completed ({done.length})</div>
+          <div className="task-list">{done.map(renderTask)}</div>
+        </>
+      )}
+    </div>
+  );
+}

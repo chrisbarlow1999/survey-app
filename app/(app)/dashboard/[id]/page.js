@@ -6,8 +6,9 @@ import { DeleteSurveyButton } from '../../../../components/DeleteSurveyButton';
 import { PrintButton, ClientPrintButton } from '../../../../components/PrintButton';
 import { ReportCoverPage } from '../../../../components/ReportCoverPage';
 import { ArchiveButton } from '../../../../components/ArchiveButton';
-import { formatBytes } from '../../../../components/AttachmentPicker';
+import { formatBytes } from '../../../../lib/formatBytes';
 import { formatDate, formatDateTime } from '../../../../lib/formatDate';
+import { ProjectLinkPicker } from '../../../../components/ProjectLinkPicker';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,8 +36,14 @@ export default async function ReportPage({ params }) {
   }
 
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: myProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: myProfile } = await supabase.from('profiles').select('full_name, email, role').eq('id', user.id).single();
   const canEdit = myProfile?.role !== 'client_viewer';
+  const actorName = myProfile?.full_name || myProfile?.email || 'Unknown user';
+
+  // Only same-client projects are offered by the link picker below.
+  const { data: linkableProjects } = canEdit && survey.client_id
+    ? await supabase.from('projects').select('id, title, reference').eq('client_id', survey.client_id).is('archived_at', null).order('created_at', { ascending: false })
+    : { data: [] };
 
   // Signed URLs for photos — the bucket is private, so each photo needs a short-lived link.
   const locationsWithUrls = await Promise.all(
@@ -96,14 +103,12 @@ export default async function ReportPage({ params }) {
         title="Site Survey Report"
         siteName={survey.site_location}
         clientName={survey.clients?.name}
-        date={formatDate(survey.survey_date)}
-        address={survey.address}
       />
 
-      <div className="panel" style={{ marginTop: 14 }}>
+      <div className="panel report-summary" style={{ marginTop: 14 }}>
         <h2 style={{ fontSize: 20 }}>{survey.site_location}{survey.clients?.name ? <span className="client-badge" style={{ marginLeft: 10, verticalAlign: 'middle' }}>{survey.clients.name}</span> : null}</h2>
         <div className="kv-grid" style={{ marginTop: 12 }}>
-          <div className="kv"><div className="k">Engineer</div><div className="v">{survey.engineer_first} {survey.engineer_last}</div></div>
+          <div className="kv internal-only"><div className="k">Engineer</div><div className="v">{survey.engineer_first} {survey.engineer_last}</div></div>
           <div className="kv internal-only"><div className="k">Phone</div><div className="v">{survey.phone}</div></div>
           <div className="kv"><div className="k">Survey Date</div><div className="v">{formatDate(survey.survey_date)}</div></div>
           <div className="kv"><div className="k">Site Contact</div><div className="v">{survey.site_contact || '—'}</div></div>
@@ -134,6 +139,16 @@ export default async function ReportPage({ params }) {
             </div>
           </div>
         )}
+        {canEdit && (
+          <ProjectLinkPicker
+            table="surveys"
+            recordId={survey.id}
+            currentProjectId={survey.project_id}
+            projects={linkableProjects || []}
+            actorName={actorName}
+            recordLabel={`Survey — ${survey.site_location || "Untitled site"}`}
+          />
+        )}
         {canEdit && survey.edit_history && survey.edit_history.length > 0 && (
           <div className="edit-history no-print">
             <div className="k">Edit History</div>
@@ -147,45 +162,58 @@ export default async function ReportPage({ params }) {
       </div>
 
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '20px 0 10px' }}>
-        Screen Locations ({locationsWithUrls.length})
+        Screen Areas ({locationsWithUrls.length})
       </h2>
-      {locationsWithUrls.map((loc, i) => {
-        const sizeInfo = SCREEN_SIZES[loc.screen_size];
-        const wmm = loc.screen_size === 'other' ? (Number(loc.custom_w) || null) : sizeInfo?.wmm;
-        const hmm = loc.screen_size === 'other' ? (Number(loc.custom_h) || null) : sizeInfo?.hmm;
+      {locationsWithUrls.map((area, i) => {
+        const sizeInfo = SCREEN_SIZES[area.screen_size];
+        const wmm = area.screen_size === 'other' ? (Number(area.custom_w) || null) : sizeInfo?.wmm;
+        const hmm = area.screen_size === 'other' ? (Number(area.custom_h) || null) : sizeInfo?.hmm;
+        const screens = area.screens || [];
         return (
-          <div className={`report-loc${i === 0 ? ' first-loc' : ''}`} key={i}>
+          <div className="report-loc" key={i}>
             <div className="print-only print-header">
               <span>{survey.site_location}</span>
               <span>{formatDate(survey.survey_date)}</span>
             </div>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, marginBottom: 12 }}>
-              Location #{i + 1}{sizeInfo ? ' — ' + sizeInfo.label : ''}
+              Area #{i + 1}{area.area_name ? ' — ' + area.area_name : ''}
+              <span className="area-screen-count">{screens.length} screen{screens.length !== 1 ? 's' : ''}{sizeInfo ? ' · ' + sizeInfo.label : ''}</span>
             </div>
             <div className="loc-body">
               <div>
                 <div className="kv-grid">
-                  <div className="kv"><div className="k">Orientation</div><div className="v">{loc.orientation}</div></div>
+                  <div className="kv"><div className="k">Orientation</div><div className="v">{area.orientation}</div></div>
                   <div className="kv"><div className="k">Model</div><div className="v">{sizeInfo ? sizeInfo.model : '—'}</div></div>
-                  <div className="kv"><div className="k">Mount Type</div><div className="v">{loc.mount_type === 'Other' ? (loc.mount_type_other || 'Other') : (loc.mount_type || '—')}</div></div>
-                  <div className="kv"><div className="k">Power Available</div><div className="v">{pill(loc.power)}</div></div>
-                  <div className="kv"><div className="k">Data / 4G Available</div><div className="v">{pill(loc.data_port)}</div></div>
+                  <div className="kv"><div className="k">Mount Type</div><div className="v">{area.mount_type === 'Other' ? (area.mount_type_other || 'Other') : (area.mount_type || '—')}</div></div>
                 </div>
-                <div className="kv"><div className="k">Measurements</div><div className="v">{loc.measurements || '—'}</div></div>
-                {loc.notes && (
-                  <div className="kv" style={{ borderColor: 'var(--accent-cyan)' }}>
-                    <div className="k">Notes</div>
-                    <div className="v">{loc.notes}</div>
+                <div className="kv"><div className="k">Measurements</div><div className="v">{area.measurements || '—'}</div></div>
+                {area.photoUrl && (
+                  <PhotoWithOverlay photoSrc={area.photoUrl} overlays={area.screen_overlays} readOnly />
+                )}
+                {screens.length > 0 && (
+                  <div className="report-screens">
+                    {screens.map((s, si) => (
+                      <div className="report-screen" key={si}>
+                        <div className="report-screen-num">Screen {si + 1}</div>
+                        <div className="kv-grid">
+                          <div className="kv"><div className="k">Power Available</div><div className="v">{pill(s.power)}</div></div>
+                          <div className="kv"><div className="k">Data / 4G Available</div><div className="v">{pill(s.data_port)}</div></div>
+                        </div>
+                        {s.notes && (
+                          <div className="kv" style={{ borderColor: 'var(--accent-cyan)' }}>
+                            <div className="k">Notes</div>
+                            <div className="v">{s.notes}</div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
-                {loc.photoUrl && (
-                  <PhotoWithOverlay photoSrc={loc.photoUrl} overlay={loc.screen_overlay} readOnly />
-                )}
-                {loc.additionalPhotoUrls && loc.additionalPhotoUrls.length > 0 && (
+                {area.additionalPhotoUrls && area.additionalPhotoUrls.length > 0 && (
                   <>
                     <div className="k" style={{ marginTop: 14, marginBottom: 6 }}>Additional Photos</div>
                     <div className="additional-photos-grid">
-                      {loc.additionalPhotoUrls.map((url, idx) => (
+                      {area.additionalPhotoUrls.map((url, idx) => (
                         <a href={url} target="_blank" rel="noreferrer" key={idx} className="additional-photo-thumb static">
                           <img src={url} alt={`Additional photo ${idx + 1}`} />
                         </a>
@@ -194,7 +222,7 @@ export default async function ReportPage({ params }) {
                   </>
                 )}
               </div>
-              <BlueprintDiagram wmm={wmm} hmm={hmm} orientation={loc.orientation} />
+              <BlueprintDiagram wmm={wmm} hmm={hmm} orientation={area.orientation} />
             </div>
           </div>
         );

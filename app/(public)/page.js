@@ -2,28 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabaseClient';
-import { LocationCard } from '../../components/LocationCard';
-import { DEFAULT_OVERLAY } from '../../components/PhotoWithOverlay';
-
-function freshLocation() {
-  return {
-    id: 'loc_' + Math.random().toString(36).slice(2, 9),
-    photoFile: null,
-    photoPreview: null,
-    screenOverlay: null,
-    sizeKey: '',
-    customW: '',
-    customH: '',
-    orientation: 'Landscape',
-    mountType: '',
-    mountTypeOther: '',
-    measurements: '',
-    power: '',
-    dataPort: '',
-    notes: '',
-    additionalPhotos: [],
-  };
-}
+import { AreaCard } from '../../components/AreaCard';
+import {
+  freshArea, addScreenToArea, removeScreenFromArea, ensureOverlaysForScreens, areaToStored,
+} from '../../lib/surveyArea';
 
 export default function NewSurveyPage() {
   const supabase = createClient();
@@ -32,7 +14,7 @@ export default function NewSurveyPage() {
     engDays: '', engCount: '', additionalInfo: '',
   });
   const [clients, setClients] = useState([]);
-  const [locations, setLocations] = useState([freshLocation()]);
+  const [areas, setAreas] = useState([freshArea()]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -46,20 +28,37 @@ export default function NewSurveyPage() {
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
   }
-  function setLocField(id, key, value) {
-    setLocations((locs) => locs.map((l) => (l.id === id ? { ...l, [key]: value } : l)));
+  function updateArea(id, fn) {
+    setAreas((list) => list.map((a) => (a.id === id ? fn(a) : a)));
   }
-  function addLocation() {
-    setLocations((locs) => [...locs, freshLocation()]);
+  function setAreaField(id, key, value) {
+    updateArea(id, (a) => ({ ...a, [key]: value }));
   }
-  function removeLocation(id) {
-    setLocations((locs) => locs.filter((l) => l.id !== id));
+  function addArea() {
+    setAreas((list) => [...list, freshArea()]);
+  }
+  function removeArea(id) {
+    setAreas((list) => list.filter((a) => a.id !== id));
   }
   function handlePhoto(id, file) {
     if (!file) return;
-    setLocField(id, 'photoFile', file);
-    setLocField(id, 'photoPreview', URL.createObjectURL(file));
-    setLocField(id, 'screenOverlay', DEFAULT_OVERLAY);
+    // Screens may already exist before a photo is added, so make sure each one
+    // has a marker to drag once there's an image to drag it onto.
+    updateArea(id, (a) => ensureOverlaysForScreens({
+      ...a, photoFile: file, photoPreview: URL.createObjectURL(file),
+    }));
+  }
+  function addScreen(id) {
+    updateArea(id, addScreenToArea);
+  }
+  function removeScreen(id, screenId) {
+    updateArea(id, (a) => removeScreenFromArea(a, screenId));
+  }
+  function setScreenField(id, screenId, key, value) {
+    updateArea(id, (a) => ({
+      ...a,
+      screens: a.screens.map((s) => (s.id === screenId ? { ...s, [key]: value } : s)),
+    }));
   }
   function handleAdditionalPhotos(id, files) {
     if (!files || !files.length) return;
@@ -68,10 +67,10 @@ export default function NewSurveyPage() {
       file,
       preview: URL.createObjectURL(file),
     }));
-    setLocations((locs) => locs.map((l) => (l.id === id ? { ...l, additionalPhotos: [...l.additionalPhotos, ...added] } : l)));
+    updateArea(id, (a) => ({ ...a, additionalPhotos: [...a.additionalPhotos, ...added] }));
   }
   function removeAdditionalPhoto(id, key) {
-    setLocations((locs) => locs.map((l) => (l.id === id ? { ...l, additionalPhotos: l.additionalPhotos.filter((p) => p.key !== key) } : l)));
+    updateArea(id, (a) => ({ ...a, additionalPhotos: a.additionalPhotos.filter((p) => p.key !== key) }));
   }
 
   async function handleSubmit(e) {
@@ -83,38 +82,24 @@ export default function NewSurveyPage() {
     }
     setSubmitting(true);
     try {
-      // Upload any photos first, one per location, into the survey-photos bucket.
-      const uploadedLocations = [];
-      for (const loc of locations) {
+      // Upload any photos first, one per area, into the survey-photos bucket.
+      const uploadedAreas = [];
+      for (const area of areas) {
         let photoPath = null;
-        if (loc.photoFile) {
-          const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${loc.photoFile.name}`;
-          const { error: upErr } = await supabase.storage.from('survey-photos').upload(path, loc.photoFile);
+        if (area.photoFile) {
+          const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${area.photoFile.name}`;
+          const { error: upErr } = await supabase.storage.from('survey-photos').upload(path, area.photoFile);
           if (upErr) throw upErr;
           photoPath = path;
         }
         const additionalPhotoPaths = [];
-        for (const ap of loc.additionalPhotos) {
+        for (const ap of area.additionalPhotos) {
           const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${ap.file.name}`;
           const { error: upErr } = await supabase.storage.from('survey-photos').upload(path, ap.file);
           if (upErr) throw upErr;
           additionalPhotoPaths.push(path);
         }
-        uploadedLocations.push({
-          photo_path: photoPath,
-          screen_overlay: loc.photoFile ? loc.screenOverlay : null,
-          additional_photos: additionalPhotoPaths,
-          screen_size: loc.sizeKey,
-          custom_w: loc.sizeKey === 'other' ? loc.customW : null,
-          custom_h: loc.sizeKey === 'other' ? loc.customH : null,
-          orientation: loc.orientation,
-          mount_type: loc.mountType,
-          mount_type_other: loc.mountType === 'Other' ? loc.mountTypeOther : null,
-          measurements: loc.measurements,
-          power: loc.power,
-          data_port: loc.dataPort,
-          notes: loc.notes,
-        });
+        uploadedAreas.push(areaToStored(area, photoPath, additionalPhotoPaths));
       }
 
       // Generated client-side so we know the id even though anonymous submitters
@@ -131,7 +116,7 @@ export default function NewSurveyPage() {
         client_id: form.clientId,
         address: form.address,
         site_contact: form.siteContact,
-        locations: uploadedLocations,
+        locations: uploadedAreas,
         engineer_days: form.engDays || null,
         engineer_count: form.engCount || null,
         additional_info: form.additionalInfo,
@@ -192,22 +177,25 @@ export default function NewSurveyPage() {
         </div>
 
         <div className="panel">
-          <h2>Screen Locations</h2>
-          <p className="hint">Add one entry per proposed screen.</p>
-          {locations.map((loc, i) => (
-            <LocationCard
-              key={loc.id}
-              loc={loc}
+          <h2>Screen Areas</h2>
+          <p className="hint">One entry per area, with all the screens going in that area.</p>
+          {areas.map((area, i) => (
+            <AreaCard
+              key={area.id}
+              area={area}
               index={i}
               showRemove={i > 0}
-              onRemove={() => removeLocation(loc.id)}
-              onChange={(key, value) => setLocField(loc.id, key, value)}
-              onPhotoChange={(file) => handlePhoto(loc.id, file)}
-              onAdditionalPhotosAdd={(files) => handleAdditionalPhotos(loc.id, files)}
-              onAdditionalPhotoRemove={(key) => removeAdditionalPhoto(loc.id, key)}
+              onRemove={() => removeArea(area.id)}
+              onChange={(key, value) => setAreaField(area.id, key, value)}
+              onPhotoChange={(file) => handlePhoto(area.id, file)}
+              onAdditionalPhotosAdd={(files) => handleAdditionalPhotos(area.id, files)}
+              onAdditionalPhotoRemove={(key) => removeAdditionalPhoto(area.id, key)}
+              onAddScreen={() => addScreen(area.id)}
+              onRemoveScreen={(screenId) => removeScreen(area.id, screenId)}
+              onScreenChange={(screenId, key, value) => setScreenField(area.id, screenId, key, value)}
             />
           ))}
-          <button type="button" className="btn-add" onClick={addLocation}>+ Add Screen Location</button>
+          <button type="button" className="btn-add" onClick={addArea}>+ Add Area</button>
         </div>
 
         <div className="panel">

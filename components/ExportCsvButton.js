@@ -15,15 +15,24 @@ import { applyArchiveFilter } from './ArchiveFilter';
 const SURVEY_HEADERS = [
   'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Phone', 'Survey Date',
   'Address', 'Site Contact', 'Engineer Days', 'Engineers Required', 'Additional Info', 'Submitted At',
-  'Location #', 'Screen Size', 'Orientation', 'Mount Type', 'Measurements', 'Power Available', 'Data/4G Available', 'Notes',
+  'Area #', 'Area Name', 'Screen Size', 'Orientation', 'Mount Type', 'Measurements',
+  'Screen #', 'Power Available', 'Data/4G Available', 'Notes',
 ];
 
 const INSTALLATION_HEADERS = [
   'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Phone', 'Install Date',
   'Address', 'Site Contact', 'Additional Info', 'Signed By', 'Submitted At',
-  'Screen #', 'Label', 'Installed', 'Notes',
+  'Area #', 'Area Name', 'Screen #', 'Installed', 'Notes',
 ];
 
+const VISIT_HEADERS = [
+  'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Phone', 'Visit Date',
+  'Address', 'Site Contact', 'Additional Info', 'Signed', 'Submitted At',
+  'Issue #', 'Issue', 'Resolved', 'Fix / Work Done',
+];
+
+// One row per screen, so an area with three screens produces three lines with
+// the area columns repeated — that's what makes the export pivotable.
 function surveyRows(surveys) {
   const rows = [];
   for (const s of surveys) {
@@ -33,29 +42,41 @@ function surveyRows(surveys) {
       s.engineer_days ?? '', s.engineer_count ?? '', s.additional_info || '',
       s.submitted_at ? formatDateTime(s.submitted_at) : '',
     ];
-    const locs = s.locations || [];
-    if (locs.length === 0) {
-      rows.push([...base, '', '', '', '', '', '', '', '']);
-    } else {
-      locs.forEach((loc, i) => {
-        const sizeInfo = SCREEN_SIZES[loc.screen_size];
+    const areas = s.locations || [];
+    if (areas.length === 0) {
+      rows.push([...base, '', '', '', '', '', '', '', '', '', '']);
+      continue;
+    }
+    areas.forEach((area, i) => {
+      const sizeInfo = SCREEN_SIZES[area.screen_size];
+      const areaCols = [
+        i + 1,
+        area.area_name || '',
+        sizeInfo ? sizeInfo.label : (area.screen_size || ''),
+        area.orientation || '',
+        area.mount_type === 'Other' ? (area.mount_type_other || 'Other') : (area.mount_type || ''),
+        area.measurements || '',
+      ];
+      const screens = area.screens || [];
+      if (screens.length === 0) {
+        rows.push([...base, ...areaCols, '', '', '', '']);
+        return;
+      }
+      screens.forEach((screen, si) => {
         rows.push([
-          ...base,
-          i + 1,
-          sizeInfo ? sizeInfo.label : (loc.screen_size || ''),
-          loc.orientation || '',
-          loc.mount_type === 'Other' ? (loc.mount_type_other || 'Other') : (loc.mount_type || ''),
-          loc.measurements || '',
-          loc.power || '',
-          loc.data_port || '',
-          loc.notes || '',
+          ...base, ...areaCols,
+          si + 1,
+          screen.power || '',
+          screen.data_port || '',
+          screen.notes || '',
         ]);
       });
-    }
+    });
   }
   return rows;
 }
 
+// One row per installed screen, matching the survey export's shape.
 function installationRows(installations) {
   const rows = [];
   for (const inst of installations) {
@@ -65,12 +86,41 @@ function installationRows(installations) {
       inst.additional_info || '', inst.signed_by || '',
       inst.submitted_at ? formatDateTime(inst.submitted_at) : '',
     ];
-    const locs = inst.locations || [];
-    if (locs.length === 0) {
+    const areas = inst.locations || [];
+    if (areas.length === 0) {
+      rows.push([...base, '', '', '', '', '']);
+      continue;
+    }
+    areas.forEach((area, i) => {
+      const areaCols = [i + 1, area.area_name || ''];
+      const screens = area.screens || [];
+      if (screens.length === 0) {
+        rows.push([...base, ...areaCols, '', '', '']);
+        return;
+      }
+      screens.forEach((screen, si) => {
+        rows.push([...base, ...areaCols, si + 1, screen.installed || '', screen.notes || '']);
+      });
+    });
+  }
+  return rows;
+}
+
+function visitRows(visits) {
+  const rows = [];
+  for (const v of visits) {
+    const base = [
+      v.site_location || '', v.clients?.name || '', v.engineer_first || '', v.engineer_last || '',
+      v.phone || '', v.visit_date ? formatDate(v.visit_date) : '', v.address || '', v.site_contact || '',
+      v.additional_info || '', v.signature_path ? 'Yes' : 'No',
+      v.submitted_at ? formatDateTime(v.submitted_at) : '',
+    ];
+    const issues = v.issues || [];
+    if (issues.length === 0) {
       rows.push([...base, '', '', '', '']);
     } else {
-      locs.forEach((loc, i) => {
-        rows.push([...base, i + 1, loc.label || '', loc.installed || '', loc.notes || '']);
+      issues.forEach((issue, i) => {
+        rows.push([...base, i + 1, issue.title || '', issue.resolved || '', issue.fix || '']);
       });
     }
   }
@@ -91,6 +141,15 @@ const CONFIG = {
     headers: INSTALLATION_HEADERS,
     buildRows: installationRows,
     select: 'site_location, engineer_first, engineer_last, phone, install_date, address, site_contact, additional_info, signed_by, submitted_at, locations, clients(name)',
+  },
+  visits: {
+    table: 'visits',
+    dateColumn: 'visit_date',
+    headers: VISIT_HEADERS,
+    buildRows: visitRows,
+    // Photo paths are deliberately omitted — signed URLs expire in an hour, so
+    // a column of them would be worse than nothing.
+    select: 'site_location, engineer_first, engineer_last, phone, visit_date, address, site_contact, additional_info, signature_path, submitted_at, issues, clients(name)',
   },
 };
 

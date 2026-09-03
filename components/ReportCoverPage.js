@@ -1,26 +1,13 @@
-// Print-only title page. Hidden on screen entirely — it exists so the exported
-// PDF opens on a proper cover rather than straight into detail, replacing the
-// manually-built deck that used to serve that purpose.
-export function ReportCoverPage({ title, siteName, clientName, date, address }) {
+// Print-only title band at the top of page 1. The summary panel (engineer,
+// site contact, date, address) prints directly underneath it, so the first
+// page of the export is the job's cover sheet rather than a title on its own.
+// Address and date live in that panel, not here, to avoid printing them twice.
+export function ReportCoverPage({ title, siteName, clientName }) {
   return (
     <div className="report-cover print-only">
-      <div className="report-cover-top">
-        <div className="report-cover-kicker">{title}</div>
-        <h1 className="report-cover-site">{siteName}</h1>
-        {clientName && <div className="report-cover-client">{clientName}</div>}
-      </div>
-      <div className="report-cover-meta">
-        {address && (
-          <div>
-            <div className="report-cover-label">Site Address</div>
-            <div>{address}</div>
-          </div>
-        )}
-        <div>
-          <div className="report-cover-label">Date</div>
-          <div>{date}</div>
-        </div>
-      </div>
+      <div className="report-cover-kicker">{title}</div>
+      <h1 className="report-cover-site">{siteName}</h1>
+      {clientName && <div className="report-cover-client">{clientName}</div>}
     </div>
   );
 }

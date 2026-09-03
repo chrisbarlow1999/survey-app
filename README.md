@@ -1,20 +1,39 @@
 # Site Survey — Digital Signage
 
-Five-part app:
+There are three record types an engineer can submit without an account — a site
+survey, an install confirmation, and a visit (callout/repair) — each with its own
+gated dashboard and report.
+
 - `/` — public site survey form. No account needed, anyone with the link can submit.
+  Screens are grouped into **areas**: an area is a place ("Bar wall") sharing one
+  photo, screen size, orientation and mount type, and holding one or more screens
+  that each have their own power/data answers and notes.
 - `/dashboard` — site survey reports view. Requires a logged-in account.
   Paginated (25 per page), with search/client/date filters, sort options, an
   "Archived" toggle, and CSV export. The export fetches the whole filtered set
   rather than just the visible page.
 - `/install` — public install-completion form (proof photos once a job's finished).
+  Same area/screen grouping as the survey, with a proof photo per screen.
   No account needed, not linked to the original survey (different engineer
   companies often do the survey vs. the install).
 - `/installations` — install confirmation reports view. Requires a logged-in
   account, same client-permission rules as `/dashboard`.
-- `/sites` — groups every survey and install confirmation by site name, so you
-  can see everything that's happened at a location in one place. Purely a text
-  match on the name (trimmed, lowercased) — there's no real database link
-  between a survey and its later install, by design (see `/install` above).
+- `/visit` — public engineer visit form (callouts/repairs). No account needed.
+  One or more issues, each with a photo of the problem, what was done to fix it,
+  and a photo of the screen working, then the engineer signs it off themselves.
+- `/visits` — engineer visit reports view. Requires a logged-in account, same
+  client-permission rules as `/dashboard`.
+- `/sites` — groups every survey, install confirmation and engineer visit by
+  site name, so you can see everything that's happened at a location in one
+  place. Purely a text match on the name (trimmed, lowercased) — there's no real
+  database link between a survey and its later install, by design (see
+  `/install` above).
+- `/projects` — the project management side: every job as a project with a status,
+  due date, task list and activity trail. Internal staff only. Create one manually,
+  or let it arrive through a client request link.
+- `/request/<slug>` — a client's own public request form. No account needed. Creates
+  a project against that client with status "New Request". Each client's link is
+  switched on individually under Admin → Clients.
 - `/admin/clients` — add/rename/delete clients, set each one's notification inbox.
 - `/admin/accounts` — create accounts, manage roles and client access, reset
   passwords, deactivate/reactivate.
@@ -24,12 +43,12 @@ All three admin pages require a super admin account; `/admin` itself just
 redirects to `/admin/clients`.
 
 The left-hand sidebar shows a different set of links depending on who's looking:
-anyone not logged in (engineers) only ever sees New Survey / New Install — there's
-no client-side hiding to work around, those are genuinely the only two pages that
-exist in the public route group (`app/(public)/`). A logged-in internal account
-(User or Super Admin) also sees Surveys, Installations, and Sites, plus New
-Survey/New Install; a Client Viewer sees Surveys, Installations, and Sites,
-nothing else — they have no reason to submit forms. Only a super admin
+anyone not logged in (engineers) only ever sees New Survey / New Install / New
+Visit — there's no client-side hiding to work around, those are genuinely the
+only pages that exist in the public route group (`app/(public)/`). A logged-in
+internal account (User or Super Admin) also sees Surveys, Installations,
+Engineer Visits and Site History; a Client Viewer sees those four but none of
+the submission forms — they have no reason to submit. Only a super admin
 additionally sees an expandable
 Admin section (Clients / Accounts / Activity). That check happens once, server-side, in
 `app/(app)/layout.js`.
@@ -112,8 +131,24 @@ Admin section (Clients / Accounts / Activity). That check happens once, server-s
     record is hidden from the default list but recoverable, unlike Delete).
 23. Also run `supabase/016_attachments.sql` — adds an `attachments` column to
     both tables for record-level files (floor plans, PDFs, spec sheets) that
-    sit alongside the per-location photos. Reuses the `survey-photos` bucket
+    sit alongside the per-area photos. Reuses the `survey-photos` bucket
     under an `attachments/` prefix, so no storage changes needed.
+24. Also run `supabase/017_engineer_visits.sql` — creates the `visits` table
+    and its access rules (anyone can submit at `/visit`; only accounts with
+    access to that client can view/edit/delete at `/visits`). Same
+    `survey-photos` bucket, no storage changes. Unlike the other two types,
+    engineer visits deliberately do **not** send a notification email.
+25. Also run `supabase/018_projects.sql` — creates `projects`, `project_tasks`
+    and `project_activity`, adds `slug`/`intake_enabled` to `clients`, and adds a
+    nullable `project_id` to surveys, installations and visits. It also widens
+    the `profiles` read policy so internal staff can see each other's names —
+    without that, the task assignee dropdown is empty for everyone except a
+    super admin.
+
+No migration is needed for the areas change — `locations` is a jsonb column and
+the shape inside it changed. Rows written before it will render with no screens
+and no markers, so **delete existing surveys and install confirmations** rather
+than trying to read them.
 
 ## Client PDF vs Internal PDF
 
@@ -121,20 +156,21 @@ Each report has two export buttons, both producing a PDF via the browser's
 print dialog:
 
 - **Client PDF** — the version to send to a client for approval. Hides
-  internal-only fields: the engineer's phone number, "Engineer Days (est.)",
+  internal-only fields: the engineer name and phone number, "Engineer Days (est.)",
   "Engineers Required", and the free-text "Additional Information" block
   (which tends to collect internal commentary not meant for clients).
 - **Internal PDF** — everything, unchanged.
 
-Both open with a cover page (report type, site, client, address, date), then
-one page per screen location.
+Page 1 of both is the cover sheet: report type, site and client, then the full
+summary (engineer, phone, date, site contact, address, resourcing, additional
+info, attachments, sign-off). Each area then gets its own page.
 
 The switch works by flagging the document with a `client-print` class for the
 duration of the print dialog; the print stylesheet hides anything marked
 `internal-only` while that flag is set. To make a field client-hidden, add
 `className="... internal-only"` to it — nothing else needs changing.
 
-Note: the per-location **Notes** field (wall construction, extra support
+Note: the per-screen **Notes** field (wall construction, extra support
 needed) *is* included in the Client PDF, on the basis that it's technical
 detail a client needs when approving an install. Mark it `internal-only` too
 if that's not what you want.
@@ -239,3 +275,47 @@ to sign in to the dashboard with one of the accounts you created in step 1.3.
 - This means even if someone finds the dashboard URL without logging in, the database
   itself refuses to hand back any survey data — `middleware.js` also redirects them
   to `/login` before the page loads.
+
+## Projects
+
+The project management side, replacing what Microsoft Planner was doing.
+
+A **project** is one piece of work for one client — a rollout, a refit, a
+single screen. It carries a status, priority, due date, description,
+attachments, a task list and an activity trail. Statuses are defined in
+`lib/projectStatus.js` rather than a database check constraint, so the workflow
+can be reshaped without a migration while it beds in.
+
+**Two ways a project starts:**
+
+1. **Manually**, from `/projects/new`, by whoever picks the work up.
+2. **Through a client request link.** Each client gets a slug (`/request/compass`)
+   which you switch on under Admin → Clients. Anyone with the link can raise a
+   request without an account; it lands as a project against that client with
+   status "New Request" and a **Request** badge so you can tell it apart from
+   one your team raised. Turning the toggle off closes the form without losing
+   the link, and that's enforced in Postgres, not just the UI — an anonymous
+   insert is only accepted for a client with intake switched on.
+
+**Tasks** are a flat list per project with an optional assignee and due date.
+Assignees can only be people with accounts — the field engineers deliberately
+don't have any, so a task assigned to "the engineer" is really assigned to the
+PM chasing them. Overdue tasks show their date in red. Completing a task
+records who did it and when.
+
+**Linking site records.** Surveys, installs and visits each have a nullable
+`project_id`, set from a picker on the record's own page. It's a PM action after
+the fact because engineers filling in the public forms have no idea which
+project a job belongs to. Only projects for the same client are offered.
+This is unrelated to Site History, which is still a plain text match on site
+name and still doesn't link a survey to its install.
+
+**Client visibility.** `client_viewer` accounts can't see projects at all —
+every policy in migration 018 requires `is_internal_staff()`. Projects carry
+internal commentary and internal assignments, so a client-facing view is a
+separate decision to make deliberately rather than inherit.
+
+**Not built yet:** no email when a task is assigned or falls due (that needs the
+Resend domain verification, same blocker as the survey notifications), no board
+/ drag-and-drop view, no CSV export of projects, and no spam protection on the
+public request form.

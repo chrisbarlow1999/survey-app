@@ -35,14 +35,18 @@ export default async function EditInstallationPage({ params }) {
     );
   }
 
-  const locationsWithUrls = await Promise.all(
-    (installation.locations || []).map(async (loc) => {
-      let photoUrl = null;
-      if (loc.photo_path) {
-        const { data } = await supabase.storage.from('survey-photos').createSignedUrl(loc.photo_path, 60 * 60);
-        photoUrl = data?.signedUrl || null;
-      }
-      return { ...loc, photoUrl };
+  // A parallel array of signed URLs per area, one per screen, so the edit form
+  // can show the existing proof photos without knowing about storage.
+  const areasWithUrls = await Promise.all(
+    (installation.locations || []).map(async (area) => {
+      const photoUrls = await Promise.all(
+        (area.screens || []).map(async (s) => {
+          if (!s.photo_path) return null;
+          const { data } = await supabase.storage.from('survey-photos').createSignedUrl(s.photo_path, 60 * 60);
+          return data?.signedUrl || null;
+        })
+      );
+      return { ...area, photoUrls };
     })
   );
 
@@ -56,7 +60,7 @@ export default async function EditInstallationPage({ params }) {
     <main>
       <a className="back-link" href={`/installations/${installation.id}`}>&larr; Back to Report</a>
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, margin: '14px 0' }}>Edit Install Confirmation</h2>
-      <EditInstallationForm installation={installation} locationsWithUrls={locationsWithUrls} clients={clients || []} editorName={editorName} signatureUrl={signatureUrl} />
+      <EditInstallationForm installation={installation} areasWithUrls={areasWithUrls} clients={clients || []} editorName={editorName} signatureUrl={signatureUrl} />
     </main>
   );
 }

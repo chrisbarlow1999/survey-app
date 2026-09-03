@@ -6,34 +6,33 @@ import { Pagination } from '../../../components/Pagination';
 import { PAGE_SIZE, SORT_OPTIONS, resolveSort, parsePage } from '../../../lib/listQuery';
 import { formatDate, formatDateTime } from '../../../lib/formatDate';
 import { ArchiveFilter, applyArchiveFilter } from '../../../components/ArchiveFilter';
-import { installCountLabel } from '../../../lib/areaSummary';
 
 export const dynamic = 'force-dynamic';
 
-export default async function InstallationsPage({ searchParams }) {
+export default async function VisitsPage({ searchParams }) {
   const params = (await searchParams) || {};
   const q = (params.q || '').trim();
   const clientId = params.client || '';
   const from = params.from || '';
   const to = params.to || '';
   const archived = params.archived || '';
-  const sort = resolveSort(params.sort, 'install_date');
+  const sort = resolveSort(params.sort, 'visit_date');
   const page = parsePage(params.page);
   const hasFilters = Boolean(q || clientId || from || to || archived || params.sort);
 
   const supabase = await createClient();
 
   let query = supabase
-    .from('installations')
+    .from('visits')
     .select(
-      'id, site_location, engineer_first, engineer_last, install_date, submitted_at, locations, archived_at, client_id, clients(id, name)',
+      'id, site_location, engineer_first, engineer_last, visit_date, submitted_at, issues, archived_at, client_id, clients(id, name)',
       { count: 'exact' }
     );
 
   query = applyArchiveFilter(query, archived);
   if (clientId) query = query.eq('client_id', clientId);
-  if (from) query = query.gte('install_date', from);
-  if (to) query = query.lte('install_date', to);
+  if (from) query = query.gte('visit_date', from);
+  if (to) query = query.lte('visit_date', to);
   if (q) {
     const safeQ = q.replace(/[",()]/g, '');
     query = query.or(
@@ -44,10 +43,10 @@ export default async function InstallationsPage({ searchParams }) {
     .order(sort.column, { ascending: sort.ascending })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
-  const [{ data: installations, error, count }, { data: clients }, { data: statsRows }] = await Promise.all([
+  const [{ data: visits, error, count }, { data: clients }, { data: statsRows }] = await Promise.all([
     query,
     supabase.from('clients').select('id, name').order('name', { ascending: true }),
-    supabase.from('installations').select('submitted_at, clients(name)').is('archived_at', null),
+    supabase.from('visits').select('submitted_at, clients(name)').is('archived_at', null),
   ]);
 
   const stats = computeStats(statsRows || []);
@@ -55,7 +54,7 @@ export default async function InstallationsPage({ searchParams }) {
 
   return (
     <main>
-      <StatsStrip total={stats.total} thisMonth={stats.thisMonth} clientStats={stats.clientStats} totalLabel="Total Installations" monthLabel="This Month" />
+      <StatsStrip total={stats.total} thisMonth={stats.thisMonth} clientStats={stats.clientStats} totalLabel="Total Visits" monthLabel="This Month" />
 
       <div className="panel" style={{ padding: '16px' }}>
         <form className="filter-row" method="get">
@@ -73,38 +72,38 @@ export default async function InstallationsPage({ searchParams }) {
           </select>
           <ArchiveFilter value={archived} />
           <button className="btn btn-primary" type="submit">Filter</button>
-          {hasFilters && <a className="btn btn-ghost" href="/installations">Clear</a>}
+          {hasFilters && <a className="btn btn-ghost" href="/visits">Clear</a>}
         </form>
       </div>
 
       <div className="panel" style={{ padding: '12px 16px' }}>
         <div className="toolbar" style={{ margin: '0 0 10px' }}>
-          <ExportCsvButton kind="installations" filters={{ q, clientId, from, to, archived }} />
+          <ExportCsvButton kind="visits" filters={{ q, clientId, from, to, archived }} />
         </div>
-        {error && <p className="error-text">Could not load installations: {error.message}</p>}
-        {!error && (!installations || installations.length === 0) && (
+        {error && <p className="error-text">Could not load visits: {error.message}</p>}
+        {!error && (!visits || visits.length === 0) && (
           <div className="empty-state">
             {archived === '1'
-              ? 'No archived installations.'
+              ? 'No archived visits.'
               : hasFilters
-                ? 'No installations match your filters.'
-                : 'No install confirmations submitted yet, or none are visible to your account.'}
+                ? 'No visits match your filters.'
+                : 'No engineer visits submitted yet, or none are visible to your account.'}
           </div>
         )}
-        {installations && installations.map((s) => (
-          <a className="sub-row" key={s.id} href={`/installations/${s.id}`}>
+        {visits && visits.map((v) => (
+          <a className="sub-row" key={v.id} href={`/visits/${v.id}`}>
             <div>
               <div className="site">
-                {s.site_location || 'Untitled site'}
-                {s.clients?.name ? <span className="client-badge">{s.clients.name}</span> : null}
-                {s.archived_at ? <span className="client-badge archived-badge">Archived</span> : null}
+                {v.site_location || 'Untitled site'}
+                {v.clients?.name ? <span className="client-badge">{v.clients.name}</span> : null}
+                {v.archived_at ? <span className="client-badge archived-badge">Archived</span> : null}
               </div>
-              <div className="meta">{s.engineer_first} {s.engineer_last} · {formatDate(s.install_date)} · {formatDateTime(s.submitted_at)}</div>
+              <div className="meta">{v.engineer_first} {v.engineer_last} · {formatDate(v.visit_date)} · {formatDateTime(v.submitted_at)}</div>
             </div>
-            <div className="count">{installCountLabel(s.locations)}</div>
+            <div className="count">{(v.issues || []).length} issue{(v.issues || []).length !== 1 ? 's' : ''}</div>
           </a>
         ))}
-        <Pagination basePath="/installations" params={params} page={page} pageSize={PAGE_SIZE} total={total} />
+        <Pagination basePath="/visits" params={params} page={page} pageSize={PAGE_SIZE} total={total} />
       </div>
     </main>
   );

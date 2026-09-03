@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createClient } from '../lib/supabaseClient';
 import { LogoutButton } from './LogoutButton';
+import { buildNav } from '../lib/nav';
 
 function isActive(pathname, href) {
   if (href === '/') return pathname === '/';
@@ -14,27 +15,7 @@ function isGroupActive(pathname, group) {
   return group.children.some((c) => isActive(pathname, c.href));
 }
 
-const STAFF_NAV_ITEMS = [
-  { href: '/', label: 'New Survey' },
-  { href: '/install', label: 'New Install' },
-  { href: '/dashboard', label: 'Surveys' },
-  { href: '/installations', label: 'Installations' },
-  { href: '/sites', label: 'Site History' },
-];
-const CLIENT_VIEWER_NAV_ITEMS = [
-  { href: '/dashboard', label: 'Surveys' },
-  { href: '/installations', label: 'Installations' },
-  { href: '/sites', label: 'Site History' },
-];
-const ADMIN_NAV_GROUP = {
-  label: 'Admin',
-  children: [
-    { href: '/admin/clients', label: 'Clients' },
-    { href: '/admin/accounts', label: 'Accounts' },
-    { href: '/admin/activity', label: 'Activity' },
-  ],
-};
-
+// Whichever group holds the page you're on starts open; the rest start closed.
 function initialExpandedGroups(navItems, pathname) {
   const initial = new Set();
   navItems.forEach((item) => {
@@ -64,12 +45,11 @@ export function AppShell({ navItems, footer, checkSession, children }) {
       if (!session || cancelled) return;
       const { data: profile } = await supabase.from('profiles').select('role, full_name, email').eq('id', session.user.id).single();
       if (cancelled) return;
-      const upgraded = profile?.role === 'super_admin'
-        ? [...STAFF_NAV_ITEMS, ADMIN_NAV_GROUP]
-        : profile?.role === 'client_viewer'
-          ? CLIENT_VIEWER_NAV_ITEMS
-          : STAFF_NAV_ITEMS;
+      const upgraded = buildNav(profile?.role || 'user');
       setSessionNav(upgraded);
+      // The public nav only had Forms, so a group that's now active (never on a
+      // public page today, but true if one moves) would otherwise stay shut.
+      setExpandedGroups(initialExpandedGroups(upgraded, pathname));
       setAccountName(profile?.full_name || profile?.email || null);
     });
     return () => { cancelled = true; };

@@ -24,7 +24,10 @@ export async function proxy(request) {
 
   const { data: { session } } = await supabase.auth.getSession();
 
-  const needsSession = ['/dashboard', '/admin', '/installations', '/sites'].some((p) => request.nextUrl.pathname.startsWith(p));
+  // Plural forms only — '/visit' and '/install' are the PUBLIC engineer forms
+  // and must stay open. ('/visit'.startsWith('/visits') is false, so they don't
+  // get caught by these prefixes.)
+  const needsSession = ['/dashboard', '/admin', '/installations', '/sites', '/visits', '/projects'].some((p) => request.nextUrl.pathname.startsWith(p));
   if (needsSession && !session) {
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
@@ -34,5 +37,5 @@ export async function proxy(request) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*', '/installations/:path*', '/sites/:path*'],
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/installations/:path*', '/sites/:path*', '/visits/:path*', '/projects/:path*'],
 };

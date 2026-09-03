@@ -70,7 +70,12 @@ a{color:inherit;}
 .sidebar-group-toggle.active{color:var(--accent-amber);}
 .sidebar-group-chevron{display:inline-block;font-size:10px;transition:transform 0.15s ease;}
 .sidebar-group-chevron.open{transform:rotate(90deg);}
-.sidebar-group-children{display:flex;flex-direction:column;padding-left:10px;}
+.sidebar-group + .sidebar-group{margin-top:4px;}
+.sidebar-group-children{
+  display:flex;flex-direction:column;
+  padding-left:12px;margin:2px 0 2px 20px;
+  border-left:1px solid var(--grid-line);
+}
 .sidebar-group-children a{
   font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:0.05em;
   color:var(--text-muted);text-decoration:none;padding:9px 14px;border-radius:6px;
@@ -175,6 +180,12 @@ textarea{resize:vertical;min-height:64px;}
 
 .install-proof-photo{display:block;max-width:100%;max-height:260px;border-radius:6px;border:1px solid var(--grid-line);margin-top:10px;align-self:flex-start;}
 
+.proof-photo-pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:12px;}
+.proof-photo-figure{display:flex;flex-direction:column;gap:6px;}
+.proof-photo-caption{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);}
+.proof-photo{display:block;width:100%;max-height:260px;object-fit:contain;border-radius:6px;border:1px solid var(--grid-line);margin-top:10px;align-self:flex-start;}
+.proof-photo-figure .proof-photo{margin-top:0;}
+
 .signature-canvas{display:block;width:100%;max-width:500px;height:160px;background:#fff;border:1px solid var(--grid-line);border-radius:8px;touch-action:none;cursor:crosshair;}
 .signature-existing img{display:block;max-width:500px;width:100%;background:#fff;border:1px solid var(--grid-line);border-radius:8px;}
 .signature-existing-img{display:block;max-width:300px;width:100%;background:#fff;border:1px solid var(--grid-line);border-radius:8px;margin-top:8px;}
@@ -244,6 +255,58 @@ a.attachment-name:hover{text-decoration:underline;}
 .status-yes{background:rgba(76,175,125,0.15);color:var(--ok);}
 .status-no{background:rgba(224,104,75,0.15);color:var(--warn);}
 
+/* --- Projects ---------------------------------------------------------- */
+/* Status tones come from lib/projectStatus.js so the pill and the workflow
+   can't drift apart. */
+.status-open{background:rgba(143,167,190,0.15);color:var(--text-muted);}
+.status-active{background:rgba(18,122,153,0.18);color:var(--accent-cyan);}
+.status-done{background:rgba(76,175,125,0.15);color:var(--ok);}
+.status-warn{background:rgba(224,104,75,0.15);color:var(--warn);}
+.intake-badge{background:rgba(240,168,60,0.15) !important;color:var(--accent-amber) !important;}
+
+.task-add-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+.task-add-row input[type=text]{flex:3 1 220px;}
+.task-add-row select{flex:1 1 150px;width:auto;}
+.task-add-row input[type=date]{flex:1 1 140px;width:auto;}
+
+.task-list{display:flex;flex-direction:column;gap:8px;}
+.task-group-label{
+  font-family:var(--font-mono);font-size:11px;text-transform:uppercase;
+  letter-spacing:0.06em;color:var(--text-muted);margin:18px 0 8px;
+}
+.task-row{
+  display:flex;align-items:flex-start;gap:12px;
+  border:1px solid var(--grid-line);border-radius:8px;
+  padding:12px 14px;background:var(--bg-panel-2);
+}
+.task-row.done .task-title{text-decoration:line-through;color:var(--text-muted);}
+.task-check{
+  flex:0 0 auto;width:20px;height:20px;margin-top:1px;
+  border:1px solid var(--grid-line);border-radius:4px;
+  background:none;color:var(--ok);font-size:13px;line-height:1;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+.task-check:hover:not(:disabled){border-color:var(--accent-amber);}
+.task-check.on{border-color:var(--ok);}
+.task-check:disabled{cursor:default;opacity:0.6;}
+.task-body{flex:1 1 auto;min-width:0;}
+.task-title{font-size:14px;color:var(--text-primary);word-break:break-word;}
+.task-meta{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:3px;}
+.task-overdue{color:var(--warn);}
+
+.activity-list{display:flex;flex-direction:column;gap:2px;}
+.activity-row{padding:9px 0;border-bottom:1px solid var(--grid-line);}
+.activity-row:last-child{border-bottom:none;}
+.activity-main{font-size:13px;color:var(--text-primary);}
+.activity-action{font-weight:600;}
+.activity-detail{color:var(--text-muted);}
+.activity-meta{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:2px;}
+
+.intake-link{
+  font-family:var(--font-mono);font-size:11px;color:var(--accent-cyan);
+  word-break:break-all;
+}
+
 .report-loc{border:1px solid var(--grid-line);border-radius:10px;padding:18px;margin-bottom:16px;background:var(--bg-panel-2);}
 .report-loc .overlay-container{margin-top:10px;max-width:320px;}
 
@@ -272,16 +335,32 @@ a.attachment-name:hover{text-decoration:underline;}
 .error-text{color:var(--warn);font-size:13px;font-family:var(--font-mono);}
 .success-panel{border-color:var(--ok);}
 
+/* --- Areas containing several screens --------------------------------- */
+/* Shared spec (size, orientation, mount) sits on the area; power, data and
+   wall notes sit on each screen, since a socket may serve screen 1 and not 3. */
+.area-screen-count{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);border:1px solid var(--grid-line);border-radius:20px;padding:2px 8px;margin-left:10px;vertical-align:middle;}
+.screen-list{border-top:1px solid var(--grid-line);padding-top:14px;margin-top:4px;}
+.screen-list-label{display:block;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:10px;}
+.screen-row{border:1px solid var(--grid-line);border-left:3px solid var(--accent-amber);border-radius:8px;padding:12px 14px 4px;margin-bottom:10px;background:var(--bg-panel-2);}
+.screen-row-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.screen-row-num{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--accent-amber);}
+
+.report-screens{margin-top:14px;}
+.report-screen{border-left:3px solid var(--accent-amber);padding-left:12px;margin-bottom:12px;}
+.report-screen-num{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--accent-amber);margin-bottom:6px;}
+
 @media print{
   html,body{background:white !important;color:#111 !important;}
   .no-print{display:none !important;}
+  /* "← Back to …" is navigation — meaningless in an exported PDF. Hidden here
+     rather than per-page so every report (and any future one) is covered. */
+  .back-link{display:none !important;}
   .shell{display:block;}
   .shell-content main{max-width:none;padding:0;}
   .panel,.report-loc{background:white !important;border:1px solid #ccc !important;}
   :root{--accent-amber:#b8730a;--accent-cyan:#127a99;--text-muted:#555;--text-primary:#111;}
 
   .report-loc{break-before:page;page-break-before:always;margin-bottom:0;border-top:none !important;}
-  .report-loc.first-loc{break-before:auto;page-break-before:auto;}
 
   .print-only{display:block !important;}
   .print-title{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:6px;}
@@ -289,39 +368,50 @@ a.attachment-name:hover{text-decoration:underline;}
 
   .blueprint{background:white !important;border:1px solid #ccc !important;}
   .loc-card{background:white !important;}
+
+  /* .report-loc forces a break BEFORE each block but nothing stops a split
+     inside one. A problem photo + fix text + working photo exceeds A4, so keep
+     the pair together and shrink the images to fit. */
+  .proof-photo-pair{grid-template-columns:1fr 1fr;break-inside:avoid;page-break-inside:avoid;}
+  .proof-photo{max-height:190px;}
+
+  /* Same reasoning for a screen block inside an area — never split one across
+     pages, and keep it with its own heading. */
+  .report-screen{break-inside:avoid;page-break-inside:avoid;}
+  .screen-row{background:white !important;}
   input[type=text],input[type=tel],input[type=date],input[type=number],input[type=email],input[type=password],textarea,select{background:white !important;}
   a[href]::after{content:none !important;}
-
-  /* Cover page — its own first page, detail starts after it. */
+  /* Page 1 is the cover sheet: this title band plus the summary panel that
+     follows it (engineer, site contact, date, address). Every area then starts
+     on its own page — see .report-loc above, which has no first-child
+     exception precisely so nothing shares page 1 with the summary. */
   .report-cover{
-    display:flex !important;flex-direction:column;justify-content:space-between;
-    min-height:88vh;break-after:page;page-break-after:always;
-    padding:0;border:none !important;
+    display:block !important;
+    padding:0 0 18px;margin-bottom:18px;
+    border:none !important;border-bottom:1px solid #ddd !important;
   }
-  .report-cover-top{padding-top:22vh;}
   .report-cover-kicker{
     font-family:var(--font-mono);font-size:11px;text-transform:uppercase;
-    letter-spacing:0.12em;color:#888;margin-bottom:14px;
+    letter-spacing:0.12em;color:#888;margin-bottom:10px;
   }
   .report-cover-site{
-    font-family:var(--font-display);font-size:38px;font-weight:700;
+    font-family:var(--font-display);font-size:30px;font-weight:700;
     margin:0;line-height:1.15;color:#111;
   }
   .report-cover-client{
-    font-family:var(--font-display);font-size:18px;color:#555;margin-top:10px;
+    font-family:var(--font-display);font-size:16px;color:#555;margin-top:8px;
   }
-  .report-cover-meta{
-    display:flex;gap:48px;flex-wrap:wrap;font-size:13px;color:#111;
-    border-top:1px solid #ddd;padding-top:16px;
-  }
-  .report-cover-label{
-    font-family:var(--font-mono);font-size:10px;text-transform:uppercase;
-    letter-spacing:0.08em;color:#888;margin-bottom:4px;
-  }
+  /* The panel repeats the site name and client on screen; on page 1 the band
+     above already carries them. */
+  .report-summary{border:none !important;padding:0 !important;margin-top:0 !important;}
+  .report-summary > h2{display:none !important;}
 
   /* Client PDF: strip internal-only fields (resourcing estimates, engineer
-     phone, internal free-text notes). Set by ClientPrintButton just for the
-     duration of the print dialog. */
+     name and phone, internal free-text notes). Set by ClientPrintButton just
+     for the duration of the print dialog. */
   html.client-print .internal-only{display:none !important;}
 }
 .print-only{display:none;}
+
+.project-link-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px;}
+.project-link-row select{flex:1 1 240px;width:auto;}

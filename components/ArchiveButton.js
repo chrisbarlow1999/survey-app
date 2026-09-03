@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
 
-// table is 'surveys' or 'installations'. Archiving is a soft delete — the row
+// table is 'surveys', 'installations' or 'visits'. Archiving is a soft delete — the row
 // stays, it's just hidden from the default list view and restorable.
 export function ArchiveButton({ table, recordId, archived }) {
   const supabase = createClient();

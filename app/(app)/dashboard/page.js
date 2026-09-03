@@ -6,6 +6,7 @@ import { Pagination } from '../../../components/Pagination';
 import { PAGE_SIZE, SORT_OPTIONS, resolveSort, parsePage } from '../../../lib/listQuery';
 import { formatDate, formatDateTime } from '../../../lib/formatDate';
 import { ArchiveFilter, applyArchiveFilter } from '../../../components/ArchiveFilter';
+import { areaCountLabel } from '../../../lib/areaSummary';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,7 +103,7 @@ export default async function DashboardPage({ searchParams }) {
               </div>
               <div className="meta">{s.engineer_first} {s.engineer_last} · {formatDate(s.survey_date)} · {formatDateTime(s.submitted_at)}</div>
             </div>
-            <div className="count">{(s.locations || []).length} location{(s.locations || []).length !== 1 ? 's' : ''}</div>
+            <div className="count">{areaCountLabel(s.locations)}</div>
           </a>
         ))}
         <Pagination basePath="/dashboard" params={params} page={page} pageSize={PAGE_SIZE} total={total} />

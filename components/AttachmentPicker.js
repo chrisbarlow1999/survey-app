@@ -1,13 +1,8 @@
 'use client';
 
-export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10MB each
+import { formatBytes } from '../lib/formatBytes';
 
-export function formatBytes(bytes) {
-  if (!bytes && bytes !== 0) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10MB each
 
 // Record-level files (floor plans, PDFs, spec sheets) — separate from the
 // per-location photos. Items are either { key, file } for newly picked files
