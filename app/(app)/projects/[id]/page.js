@@ -14,7 +14,7 @@ export default async function ProjectPage({ params }) {
 
   const { data: project, error } = await supabase
     .from('projects')
-    .select('*, clients(id, name)')
+    .select('*, clients(id, name), owner:profiles!owner_id(id, full_name, email)')
     .eq('id', id)
     .single();
 
@@ -34,14 +34,13 @@ export default async function ProjectPage({ params }) {
   const [
     { data: tasks },
     { data: activity },
-    { data: assignees },
     { data: surveys },
     { data: installations },
     { data: visits },
   ] = await Promise.all([
     supabase
       .from('project_tasks')
-      .select('*, assignee:profiles!assignee_id(id, full_name, email)')
+      .select('*')
       .eq('project_id', id)
       .order('position', { ascending: true }),
     supabase
@@ -50,12 +49,6 @@ export default async function ProjectPage({ params }) {
       .eq('project_id', id)
       .order('created_at', { ascending: false })
       .limit(50),
-    supabase
-      .from('profiles')
-      .select('id, full_name, email')
-      .in('role', ['user', 'super_admin'])
-      .eq('active', true)
-      .order('full_name', { ascending: true }),
     supabase.from('surveys').select('id, site_location, survey_date').eq('project_id', id).is('archived_at', null),
     supabase.from('installations').select('id, site_location, install_date').eq('project_id', id).is('archived_at', null),
     supabase.from('visits').select('id, site_location, visit_date').eq('project_id', id).is('archived_at', null),
@@ -105,6 +98,7 @@ export default async function ProjectPage({ params }) {
             <div className="k">Status</div>
             <div className="v"><span className={`status-pill status-${statusTone(project.status)}`}>{statusLabel(project.status)}</span></div>
           </div>
+          <div className="kv"><div className="k">Owner</div><div className="v">{project.owner?.full_name || project.owner?.email || 'Unassigned'}</div></div>
           <div className="kv"><div className="k">Priority</div><div className="v">{priorityLabel(project.priority)}</div></div>
           <div className="kv"><div className="k">Due Date</div><div className="v">{project.due_date ? formatDate(project.due_date) : '—'}</div></div>
           <div className="kv"><div className="k">Reference</div><div className="v">{project.reference || '—'}</div></div>
@@ -141,7 +135,6 @@ export default async function ProjectPage({ params }) {
       <ProjectTaskList
         projectId={project.id}
         tasks={tasks || []}
-        assignees={assignees || []}
         actorName={actorName}
         readOnly={!canEdit}
       />

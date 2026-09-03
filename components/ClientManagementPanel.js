@@ -161,13 +161,23 @@ export function ClientManagementPanel({ initialClients }) {
                 <>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <span className="client-row-name">{c.name}</span>
-                    {c.intake_enabled && <span className="client-badge intake-badge" style={{ marginLeft: 8 }}>Request form live</span>}
+                    <span className={`client-badge ${c.intake_enabled ? 'intake-badge' : 'archived-badge'}`} style={{ marginLeft: 8 }}>
+                      {c.intake_enabled ? 'Request form live' : 'Request form off'}
+                    </span>
                     <div className="client-row-email">{c.notification_email || 'No notification inbox set'}</div>
-                    {c.intake_enabled && c.slug && (
-                      <div className="intake-link" style={{ marginTop: 4 }}>{requestUrl(c.slug)}</div>
+                    {/* Shown whether or not intake is on, so the URL is discoverable
+                        before you commit to switching it on — greyed out while off. */}
+                    {c.slug ? (
+                      <div className={`intake-link${c.intake_enabled ? '' : ' off'}`} style={{ marginTop: 4 }}>
+                        {requestUrl(c.slug)}
+                      </div>
+                    ) : (
+                      <div className="intake-link off" style={{ marginTop: 4 }}>
+                        No request link yet — add one under Edit.
+                      </div>
                     )}
                   </div>
-                  {c.intake_enabled && c.slug && (
+                  {c.slug && (
                     <button className="btn btn-ghost" type="button" onClick={() => copyLink(c)}>
                       {copiedId === c.id ? 'Copied' : 'Copy Link'}
                     </button>

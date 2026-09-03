@@ -11,7 +11,7 @@ import { PROJECT_STATUSES, PROJECT_PRIORITIES, statusLabel } from '../lib/projec
 // One form for both create and edit. The other record types have separate New
 // and Edit components that have already drifted apart in small ways; there's no
 // reason to repeat that here when the fields are identical.
-export function ProjectForm({ project, clients, actorName, userId }) {
+export function ProjectForm({ project, clients, owners, actorName, userId }) {
   const supabase = createClient();
   const router = useRouter();
   const editing = Boolean(project);
@@ -28,6 +28,9 @@ export function ProjectForm({ project, clients, actorName, userId }) {
     status: project?.status || 'new',
     priority: project?.priority || 'normal',
     dueDate: project?.due_date || '',
+    // A new project defaults to whoever is creating it — the common case, and
+    // it stops projects being raised with nobody answerable for them.
+    ownerId: project ? (project.owner_id || '') : userId,
   });
   const [attachments, setAttachments] = useState(() => attachmentsFromExisting(project?.attachments));
   const [submitting, setSubmitting] = useState(false);
@@ -61,8 +64,15 @@ export function ProjectForm({ project, clients, actorName, userId }) {
         status: form.status,
         priority: form.priority,
         due_date: form.dueDate || null,
+        owner_id: form.ownerId || null,
         attachments: savedAttachments,
       };
+
+      function ownerName(id) {
+        if (!id) return 'Unassigned';
+        const o = owners.find((x) => x.id === id);
+        return o ? (o.full_name || o.email) : 'Someone else';
+      }
 
       if (editing) {
         const historyEntry = { name: actorName, edited_at: new Date().toISOString() };
@@ -85,6 +95,17 @@ export function ProjectForm({ project, clients, actorName, userId }) {
           await logProjectActivity(supabase, { projectId: project.id, actorName, action: 'Project details edited' });
         }
 
+        // Handing a project over is worth its own line too — it's the other
+        // change people scan the feed for.
+        if ((project.owner_id || '') !== (form.ownerId || '')) {
+          await logProjectActivity(supabase, {
+            projectId: project.id,
+            actorName,
+            action: 'Owner changed',
+            detail: `${ownerName(project.owner_id)} → ${ownerName(form.ownerId)}`,
+          });
+        }
+
         const surviving = new Set(savedAttachments.map((a) => a.path));
         const orphaned = originalPaths.filter((p) => !surviving.has(p));
         if (orphaned.length) {
@@ -105,7 +126,7 @@ export function ProjectForm({ project, clients, actorName, userId }) {
           projectId: data.id,
           actorName,
           action: 'Project created',
-          detail: 'Created manually',
+          detail: `Created manually · owner ${ownerName(form.ownerId)}`,
         });
         router.push(`/projects/${data.id}`);
         router.refresh();
@@ -159,7 +180,20 @@ export function ProjectForm({ project, clients, actorName, userId }) {
       </div>
 
       <div className="panel">
-        <h2>Status &amp; Scheduling</h2>
+        <h2>Ownership &amp; Scheduling</h2>
+        <p className="hint">
+          The owner is the internal person answerable for this project. Tasks below sit under
+          them — they don&apos;t get owners of their own.
+        </p>
+        <div className="field-row">
+          <div className="field" style={{ flex: '1 1 100%' }}>
+            <label>Owner</label>
+            <select value={form.ownerId} onChange={(e) => setField('ownerId', e.target.value)}>
+              <option value="">Unassigned</option>
+              {owners.map((o) => <option key={o.id} value={o.id}>{o.full_name || o.email}</option>)}
+            </select>
+          </div>
+        </div>
         <div className="field-row">
           <div className="field">
             <label>Status</label>

@@ -415,3 +415,4 @@ a.attachment-name:hover{text-decoration:underline;}
 
 .project-link-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px;}
 .project-link-row select{flex:1 1 240px;width:auto;}
+.intake-link.off{color:var(--text-muted);}

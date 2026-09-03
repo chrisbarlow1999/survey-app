@@ -18,7 +18,10 @@ export default async function NewProjectPage() {
 
   // RLS would reject an insert against a client this account can't access, so
   // only offer the ones they can actually use.
-  const { data: clients } = await supabase.from('clients').select('id, name').order('name', { ascending: true });
+  const [{ data: clients }, { data: owners }] = await Promise.all([
+    supabase.from('clients').select('id, name').order('name', { ascending: true }),
+    supabase.from('profiles').select('id, full_name, email').in('role', ['user', 'super_admin']).eq('active', true).order('full_name', { ascending: true }),
+  ]);
 
   return (
     <main>
@@ -26,6 +29,7 @@ export default async function NewProjectPage() {
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, margin: '14px 0' }}>New Project</h2>
       <ProjectForm
         clients={clients || []}
+        owners={owners || []}
         actorName={profile?.full_name || profile?.email || 'Unknown user'}
         userId={user.id}
       />

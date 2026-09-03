@@ -32,26 +32,35 @@ gated dashboard and report.
   due date, task list and activity trail. Internal staff only. Create one manually,
   or let it arrive through a client request link.
 - `/request/<slug>` — a client's own public request form. No account needed. Creates
-  a project against that client with status "New Request". Each client's link is
-  switched on individually under Admin → Clients.
+  a project against that client with status "New Request". Links are listed, shared
+  and switched on under Admin → Request Links.
 - `/admin/clients` — add/rename/delete clients, set each one's notification inbox.
+- `/admin/request-links` — every client's request-form link in one place, with
+  copy/preview buttons, an on/off switch, and how many requests each has brought in.
 - `/admin/accounts` — create accounts, manage roles and client access, reset
   passwords, deactivate/reactivate.
 - `/admin/activity` — a log of who did what across the admin pages.
 
-All three admin pages require a super admin account; `/admin` itself just
+All four admin pages require a super admin account; `/admin` itself just
 redirects to `/admin/clients`.
 
-The left-hand sidebar shows a different set of links depending on who's looking:
-anyone not logged in (engineers) only ever sees New Survey / New Install / New
-Visit — there's no client-side hiding to work around, those are genuinely the
-only pages that exist in the public route group (`app/(public)/`). A logged-in
-internal account (User or Super Admin) also sees Surveys, Installations,
-Engineer Visits and Site History; a Client Viewer sees those four but none of
-the submission forms — they have no reason to submit. Only a super admin
-additionally sees an expandable
-Admin section (Clients / Accounts / Activity). That check happens once, server-side, in
-`app/(app)/layout.js`.
+The left-hand sidebar is grouped into collapsible sections — **Forms** (New
+Survey / New Install / New Visit) and **Site Visits** (Surveys / Installations /
+Engineer Visits / Site History) — with **Projects** as a single link above them
+and an **Admin** section (Clients / Request Links / Accounts / Activity) for
+super admins only. Whichever group holds the current page starts open.
+
+Who sees what: anyone not logged in (engineers) only ever gets the Forms group —
+there's no client-side hiding to work around, those are genuinely the only pages
+that exist in the public route group (`app/(public)/`). A logged-in internal
+account (User or Super Admin) gets Projects, Forms and Site Visits; a Client
+Viewer gets Site Visits alone — no submission forms, and no Projects, since
+those carry internal assignments and commentary. That check happens once,
+server-side, in `app/(app)/layout.js`.
+
+All three nav variants come from one definition in `lib/nav.js`, shared by both
+layouts and by `AppShell`'s client-side session upgrade — they used to be three
+hand-synced copies.
 
 ## 1. One-time Supabase setup
 
@@ -142,8 +151,17 @@ Admin section (Clients / Accounts / Activity). That check happens once, server-s
     and `project_activity`, adds `slug`/`intake_enabled` to `clients`, and adds a
     nullable `project_id` to surveys, installations and visits. It also widens
     the `profiles` read policy so internal staff can see each other's names —
-    without that, the task assignee dropdown is empty for everyone except a
+    without that, the project Owner dropdown is empty for everyone except a
     super admin.
+26. Also run `supabase/019_client_slug_backfill.sql` — gives every client that
+    existed before 018 a request-form URL. Without it their slug stays null, so
+    their request link can't be switched on from the admin page. It does not
+    switch any form on.
+27. Also run `supabase/020_project_owner.sql` — adds `owner_id` to `projects`
+    and drops `assignee_id` from `project_tasks`. That drop is destructive and
+    intentional: it discards any per-task assignments already entered. The
+    profiles read policy from 018 is still needed — it now feeds the project
+    Owner dropdown.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
@@ -297,11 +315,17 @@ can be reshaped without a migration while it beds in.
    the link, and that's enforced in Postgres, not just the UI — an anonymous
    insert is only accepted for a client with intake switched on.
 
-**Tasks** are a flat list per project with an optional assignee and due date.
-Assignees can only be people with accounts — the field engineers deliberately
-don't have any, so a task assigned to "the engineer" is really assigned to the
-PM chasing them. Overdue tasks show their date in red. Completing a task
-records who did it and when.
+**Ownership** sits on the project, not the task. One internal person owns a
+project and is answerable for it; a new project defaults to whoever created it.
+The list can be filtered by owner, including "Unassigned" to find work nobody has
+picked up. Handing a project over is written to the activity feed like a status
+change is.
+
+**Tasks** are a flat checklist under the project — title, optional due date,
+done or not. They have no owner of their own: per-task assignees were tried first
+and made no sense, since the engineers have no accounts and every task ended up
+owned by the same PM anyway. Overdue tasks show their date in red, and completing
+one records who did it and when.
 
 **Linking site records.** Surveys, installs and visits each have a nullable
 `project_id`, set from a picker on the record's own page. It's a PM action after

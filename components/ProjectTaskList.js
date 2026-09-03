@@ -6,15 +6,15 @@ import { createClient } from '../lib/supabaseClient';
 import { logProjectActivity } from '../lib/logProjectActivity';
 import { formatDate } from '../lib/formatDate';
 
-// Tasks are only ever assignable to people with accounts — the field engineers
-// don't have any, by design. So "assigned to" here means the internal person
-// responsible for chasing it, not whoever physically attends site.
-export function ProjectTaskList({ projectId, tasks, assignees, actorName, readOnly }) {
+// A flat checklist under the project. Tasks have no owner of their own — the
+// project has one, and these are that person's list. Per-task assignees were
+// tried first and made no sense: engineers have no accounts, so every task
+// ended up owned by the same PM anyway.
+export function ProjectTaskList({ projectId, tasks, actorName, readOnly }) {
   const supabase = createClient();
   const router = useRouter();
 
   const [newTitle, setNewTitle] = useState('');
-  const [newAssignee, setNewAssignee] = useState('');
   const [newDue, setNewDue] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [adding, setAdding] = useState(false);
@@ -35,7 +35,6 @@ export function ProjectTaskList({ projectId, tasks, assignees, actorName, readOn
     const { error: insertErr } = await supabase.from('project_tasks').insert({
       project_id: projectId,
       title,
-      assignee_id: newAssignee || null,
       due_date: newDue || null,
       position,
     });
@@ -47,7 +46,6 @@ export function ProjectTaskList({ projectId, tasks, assignees, actorName, readOn
     }
     await logProjectActivity(supabase, { projectId, actorName, action: 'Task added', detail: title });
     setNewTitle('');
-    setNewAssignee('');
     setNewDue('');
     setAdding(false);
     router.refresh();
@@ -112,11 +110,12 @@ export function ProjectTaskList({ projectId, tasks, assignees, actorName, readOn
         <div className="task-body">
           <div className="task-title">{task.title}</div>
           <div className="task-meta">
-            {task.assignee?.full_name || task.assignee?.email || 'Unassigned'}
             {task.due_date && (
-              <span className={overdue ? 'task-overdue' : ''}> · Due {formatDate(task.due_date)}</span>
+              <span className={overdue ? 'task-overdue' : ''}>Due {formatDate(task.due_date)}</span>
             )}
-            {task.completed_at && task.completed_by ? ` · Done by ${task.completed_by}` : ''}
+            {task.completed_at && task.completed_by
+              ? `${task.due_date ? ' · ' : ''}Done by ${task.completed_by}`
+              : ''}
           </div>
         </div>
         {!readOnly && (
@@ -140,12 +139,6 @@ export function ProjectTaskList({ projectId, tasks, assignees, actorName, readOn
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="Add a task…"
           />
-          <select value={newAssignee} onChange={(e) => setNewAssignee(e.target.value)} title="Assign to">
-            <option value="">Unassigned</option>
-            {assignees.map((a) => (
-              <option key={a.id} value={a.id}>{a.full_name || a.email}</option>
-            ))}
-          </select>
           <input type="date" min="2000-01-01" max="2100-12-31" value={newDue} onChange={(e) => setNewDue(e.target.value)} title="Due date" />
           <button className="btn btn-primary" type="submit" disabled={adding || !newTitle.trim()}>
             {adding ? 'Adding…' : 'Add'}

@@ -27,7 +27,10 @@ export default async function EditProjectPage({ params }) {
     );
   }
 
-  const { data: clients } = await supabase.from('clients').select('id, name').order('name', { ascending: true });
+  const [{ data: clients }, { data: owners }] = await Promise.all([
+    supabase.from('clients').select('id, name').order('name', { ascending: true }),
+    supabase.from('profiles').select('id, full_name, email').in('role', ['user', 'super_admin']).eq('active', true).order('full_name', { ascending: true }),
+  ]);
 
   return (
     <main>
@@ -36,6 +39,7 @@ export default async function EditProjectPage({ params }) {
       <ProjectForm
         project={project}
         clients={clients || []}
+        owners={owners || []}
         actorName={profile?.full_name || profile?.email || 'Unknown user'}
         userId={user.id}
       />
