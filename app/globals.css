@@ -289,6 +289,22 @@ a.attachment-name:hover{text-decoration:underline;}
 .task-check:hover:not(:disabled){border-color:var(--accent-amber);}
 .task-check.on{border-color:var(--ok);}
 .task-check:disabled{cursor:default;opacity:0.6;}
+
+/* Recedes until you're on the row, rather than hiding outright — a delete that
+   only exists on hover is unreachable on a touch screen. */
+.task-delete{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  width:28px;height:28px;padding:0;
+  background:none;border:1px solid transparent;border-radius:6px;
+  color:var(--text-muted);opacity:0.4;cursor:pointer;
+  transition:opacity 0.12s ease,color 0.12s ease,border-color 0.12s ease,background 0.12s ease;
+}
+.task-row:hover .task-delete{opacity:1;}
+.task-delete:hover:not(:disabled){color:var(--warn);border-color:var(--warn);background:rgba(224,104,75,0.12);}
+.task-delete:focus-visible{opacity:1;outline:2px solid var(--accent-cyan);outline-offset:2px;}
+.task-delete:disabled{opacity:0.25;cursor:default;}
+.task-delete svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;}
+@media (hover:none){.task-delete{opacity:0.75;}}
 .task-body{flex:1 1 auto;min-width:0;}
 .task-title{font-size:14px;color:var(--text-primary);word-break:break-word;}
 .task-meta{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:3px;}
@@ -338,7 +354,24 @@ a.attachment-name:hover{text-decoration:underline;}
 /* --- Areas containing several screens --------------------------------- */
 /* Shared spec (size, orientation, mount) sits on the area; power, data and
    wall notes sit on each screen, since a socket may serve screen 1 and not 3. */
-.area-screen-count{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);border:1px solid var(--grid-line);border-radius:20px;padding:2px 8px;margin-left:10px;vertical-align:middle;}
+.area-screen-count,.panel-count{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);border:1px solid var(--grid-line);border-radius:20px;padding:2px 8px;margin-left:10px;vertical-align:middle;}
+
+/* A panel that opens and closes. Native <details>, so no client component is
+   needed just to hide something on a server-rendered page. */
+.collapsible-panel > summary{
+  display:flex;align-items:center;cursor:pointer;list-style:none;
+}
+.collapsible-panel > summary::-webkit-details-marker{display:none;}
+.collapsible-panel > summary h2{margin:0;}
+.collapsible-panel > summary::after{
+  content:'\25B8';display:inline-block;margin-left:auto;
+  font-size:11px;color:var(--text-muted);transition:transform 0.15s ease;
+}
+.collapsible-panel[open] > summary::after{transform:rotate(90deg);}
+.collapsible-panel > summary:hover::after{color:var(--text-primary);}
+.collapsible-body{margin-top:14px;}
+/* Nothing is hidden in an export — a PDF can't be expanded. */
+@media print{.collapsible-body{display:block !important;}}
 .screen-list{border-top:1px solid var(--grid-line);padding-top:14px;margin-top:4px;}
 .screen-list-label{display:block;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:10px;}
 .screen-row{border:1px solid var(--grid-line);border-left:3px solid var(--accent-amber);border-radius:8px;padding:12px 14px 4px;margin-bottom:10px;background:var(--bg-panel-2);}

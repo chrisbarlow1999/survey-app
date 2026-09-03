@@ -157,23 +157,32 @@ export default async function ProjectPage({ params }) {
         ))}
       </div>
 
-      <div className="panel">
-        <h2>Activity</h2>
-        {(!activity || activity.length === 0) && <div className="empty-state">No activity recorded yet.</div>}
-        {activity && activity.length > 0 && (
-          <div className="activity-list">
-            {activity.map((a) => (
-              <div className="activity-row" key={a.id}>
-                <div className="activity-main">
-                  <span className="activity-action">{a.action}</span>
-                  {a.detail ? <span className="activity-detail"> — {a.detail}</span> : null}
+      {/* Collapsed by default — the trail matters when you're checking what
+          happened, not every time you open a project. A native <details> keeps
+          this page a server component: no client JS, and it's keyboard
+          accessible for free. */}
+      <details className="panel collapsible-panel">
+        <summary>
+          <h2>Activity</h2>
+          {activity && activity.length > 0 && <span className="panel-count">{activity.length}</span>}
+        </summary>
+        <div className="collapsible-body">
+          {(!activity || activity.length === 0) && <div className="empty-state">No activity recorded yet.</div>}
+          {activity && activity.length > 0 && (
+            <div className="activity-list">
+              {activity.map((a) => (
+                <div className="activity-row" key={a.id}>
+                  <div className="activity-main">
+                    <span className="activity-action">{a.action}</span>
+                    {a.detail ? <span className="activity-detail"> — {a.detail}</span> : null}
+                  </div>
+                  <div className="activity-meta">{a.actor_name} · {formatDateTime(a.created_at)}</div>
                 </div>
-                <div className="activity-meta">{a.actor_name} · {formatDateTime(a.created_at)}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </details>
     </main>
   );
 }

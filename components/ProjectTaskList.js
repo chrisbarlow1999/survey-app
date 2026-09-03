@@ -119,8 +119,17 @@ export function ProjectTaskList({ projectId, tasks, actorName, readOnly }) {
           </div>
         </div>
         {!readOnly && (
-          <button type="button" className="remove" onClick={() => deleteTask(task)} disabled={busyId === task.id}>
-            Delete
+          <button
+            type="button"
+            className="task-delete"
+            onClick={() => deleteTask(task)}
+            disabled={busyId === task.id}
+            aria-label={`Delete task: ${task.title}`}
+            title="Delete task"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M6 2.5h4M2.5 4.5h11M4.6 4.5l.6 8.2a1 1 0 0 0 1 .93h3.6a1 1 0 0 0 1-.93l.6-8.2M6.8 7.1v4M9.2 7.1v4" />
+            </svg>
           </button>
         )}
       </div>
