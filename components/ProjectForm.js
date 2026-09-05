@@ -27,6 +27,7 @@ export function ProjectForm({ clients, owners, templates, actorName, userId }) {
     priority: 'normal',
     dueDate: '',
     screenCount: '',
+    installDate: '',
     // Defaults to whoever is creating it — the common case, and it stops
     // projects being raised with nobody answerable for them.
     ownerId: userId,
@@ -65,6 +66,7 @@ export function ProjectForm({ clients, owners, templates, actorName, userId }) {
         status: form.status,
         priority: form.priority,
         due_date: form.dueDate || null,
+        install_date: form.installDate || null,
         // Null, not 0, when left blank: the pipeline figure reports
         // "not estimated yet" separately from "no screens needed".
         screen_count: form.screenCount === '' ? null : Number(form.screenCount),
@@ -225,6 +227,11 @@ export function ProjectForm({ clients, owners, templates, actorName, userId }) {
           <div className="field">
             <label>Due Date</label>
             <input type="date" min="2000-01-01" max="2100-12-31" value={form.dueDate} onChange={(e) => setField('dueDate', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Install Date</label>
+            <input type="date" min="2000-01-01" max="2100-12-31" value={form.installDate} onChange={(e) => setField('installDate', e.target.value)} />
+            <p className="hint">When engineers are booked. Leave blank until it&apos;s scheduled.</p>
           </div>
           <div className="field">
             <label>Screens</label>

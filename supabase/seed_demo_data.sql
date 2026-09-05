@@ -248,32 +248,32 @@ begin
   -- home page panels all have something real to show.
   for s in
     select * from (values
-      (1,  'Eurest — Canary Wharf screen refresh',  'compass',   'new',            'high',   3,   14, 'manual', true, 2),
-      (2,  'Levy — Spurs concourse rollout',        'compass',   'with_client',    'urgent', 7,    5, 'manual', true, 12),
-      (3,  '14Forty — JLR canteen screens',         'compass',   'estimating',     'normal', 12,  21, 'manual', true, 4),
-      (4,  'Eurest — GSK atrium video wall',        'compass',   'designs',        'high',   18,  30, 'manual', false, 6),
-      (5,  'Levy — Emirates matchday screens',      'compass',   'install_booked', 'urgent', 25,   9, 'manual', true, 18),
-      (6,  'Starbucks — Oxford St menu boards',     'starbucks', 'complete',       'normal', 40, -20, 'manual', true, 3),
-      (7,  'Starbucks — Leeds Trinity refit',       'starbucks', 'on_hold',        'low',    33,  60, 'manual', false, null),
-      (8,  'TUI — Bluewater window display',        'tui',       'new',            'normal', 2,   28, 'intake', false, 2),
-      (9,  'Eurest — Deloitte cafe screens',        'compass',   'estimating',     'normal', 45,  18, 'manual', true, 5),
-      (10, 'Levy — Twickenham hospitality',         'compass',   'with_client',    'high',   30,   3, 'manual', true, 14),
-      (11, 'Starbucks — Manchester counter screen', 'starbucks', 'complete',       'low',    55, -30, 'manual', true, 1),
-      (12, '14Forty — Rolls Royce reception',       'compass',   'install_booked', 'normal', 21,  12, 'manual', true, 3),
-      (13, 'TUI — Meadowhall shop front',           'tui',       'new',            'normal', 1,   35, 'intake', false, null),
-      (14, 'Eurest — Barclays Glasgow restaurant',  'compass',   'designs',        'normal', 38,  25, 'manual', true, 6),
-      (15, 'Levy — Ascot grandstand',               'compass',   'cancelled',      'low',    60,  null,'manual', true, 9),
-      (16, 'Eurest — Google KX ground floor',       'compass',   'estimating',     'high',   28,  16, 'manual', false, 4),
-      (17, 'Levy — The O2 concourse',               'compass',   'with_client',    'urgent', 41,  -2, 'manual', true, 22),
-      (18, 'Starbucks — Bristol order point',       'starbucks', 'new',            'normal', 4,   40, 'intake', false, null),
-      (19, 'Levy — Wembley Club',                   'compass',   'designs',        'high',   50,  22, 'manual', true, 26),
-      (20, 'Eurest — Unilever atrium',              'compass',   'on_hold',        'normal', 47,  null,'manual', true, 3)
-    ) as t(n, title, client_key, status, priority, created_days_ago, due_in_days, source, has_owner, screens)
+      (1,  'Eurest — Canary Wharf screen refresh',  'compass',   'new',            'high',   3,   14, 'manual', true, 2, null),
+      (2,  'Levy — Spurs concourse rollout',        'compass',   'with_client',    'urgent', 7,    5, 'manual', true, 12, null),
+      (3,  '14Forty — JLR canteen screens',         'compass',   'estimating',     'normal', 12,  21, 'manual', true, 4, null),
+      (4,  'Eurest — GSK atrium video wall',        'compass',   'designs',        'high',   18,  30, 'manual', false, 6, null),
+      (5,  'Levy — Emirates matchday screens',      'compass',   'install_booked', 'urgent', 25,   9, 'manual', true, 18, -1),
+      (6,  'Starbucks — Oxford St menu boards',     'starbucks', 'complete',       'normal', 40, -20, 'manual', true, 3, -18),
+      (7,  'Starbucks — Leeds Trinity refit',       'starbucks', 'on_hold',        'low',    33,  60, 'manual', false, null, null),
+      (8,  'TUI — Bluewater window display',        'tui',       'new',            'normal', 2,   28, 'intake', false, 2, null),
+      (9,  'Eurest — Deloitte cafe screens',        'compass',   'estimating',     'normal', 45,  18, 'manual', true, 5, null),
+      (10, 'Levy — Twickenham hospitality',         'compass',   'with_client',    'high',   30,   3, 'manual', true, 14, null),
+      (11, 'Starbucks — Manchester counter screen', 'starbucks', 'complete',       'low',    55, -30, 'manual', true, 1, -28),
+      (12, '14Forty — Rolls Royce reception',       'compass',   'install_booked', 'normal', 21,  12, 'manual', true, 3, 12),
+      (13, 'TUI — Meadowhall shop front',           'tui',       'new',            'normal', 1,   35, 'intake', false, null, null),
+      (14, 'Eurest — Barclays Glasgow restaurant',  'compass',   'designs',        'normal', 38,  25, 'manual', true, 6, 25),
+      (15, 'Levy — Ascot grandstand',               'compass',   'cancelled',      'low',    60,  null,'manual', true, 9, null),
+      (16, 'Eurest — Google KX ground floor',       'compass',   'estimating',     'high',   28,  16, 'manual', false, 4, null),
+      (17, 'Levy — The O2 concourse',               'compass',   'with_client',    'urgent', 41,  -2, 'manual', true, 22, 5),
+      (18, 'Starbucks — Bristol order point',       'starbucks', 'new',            'normal', 4,   40, 'intake', false, null, null),
+      (19, 'Levy — Wembley Club',                   'compass',   'designs',        'high',   50,  22, 'manual', true, 26, 22),
+      (20, 'Eurest — Unilever atrium',              'compass',   'on_hold',        'normal', 47,  null,'manual', true, 3, null)
+    ) as t(n, title, client_key, status, priority, created_days_ago, due_in_days, source, has_owner, screens, install_in_days)
   loop
     insert into projects (
       id, client_id, title, reference, site_location, address, description,
       requested_by, requester_email, status, priority, due_date, source,
-      owner_id, screen_count, created_at, last_activity_at
+      owner_id, screen_count, install_date, created_at, last_activity_at
     ) values (
       demo_id(4, s.n),
       case s.client_key when 'starbucks' then starbucks when 'tui' then tui else compass end,
@@ -290,6 +290,7 @@ begin
       s.source,
       case when s.has_owner then (case when s.n % 2 = 0 then owner_a else owner_b end) else null end,
       s.screens,
+      case when s.install_in_days is null then null else (current_date + s.install_in_days) end,
       (now() - (s.created_days_ago || ' days')::interval),
       -- Two projects deliberately left stale so the home page's "gone quiet"
       -- panel has something in it.
@@ -365,6 +366,7 @@ drop function if exists demo_id(int, int);
 --   /home       overdue tasks, unassigned requests, two projects gone quiet
 --   /dashboard  30 surveys — two pages, so pagination is exercised
 --   /projects   20 projects across every status, with a screen total in the strip
+--   /projects/table  sortable columns, install dates, one overdue install in red
 --   /projects/board  every column populated
 --   /sites      grouped venues, several with a survey AND an install
 --   /visits     12 callouts, some unresolved

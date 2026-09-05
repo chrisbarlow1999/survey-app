@@ -69,8 +69,11 @@ export function ProjectBoard({ projects, actorName, canEdit }) {
   function renderCard(p) {
     const done = p.taskDone;
     const total = p.taskTotal;
-    const overdue = p.due_date && !['complete', 'cancelled'].includes(p.status)
-      && new Date(p.due_date) < new Date(new Date().toDateString());
+    // The booked install wins over the client's requested deadline: it's the
+    // harder commitment, and showing both dates makes the card unreadable.
+    const keyDate = p.install_date || p.due_date;
+    const overdue = keyDate && !['complete', 'cancelled'].includes(p.status)
+      && new Date(keyDate) < new Date(new Date().toDateString());
     return (
       <div
         key={p.id}
@@ -104,9 +107,9 @@ export function ProjectBoard({ projects, actorName, canEdit }) {
               {p.screen_count}
             </span>
           )}
-          {p.due_date && (
-            <span className={`board-chip${overdue ? ' overdue' : ''}`} title="Due date">
-              {formatDate(p.due_date)}
+          {keyDate && (
+            <span className={`board-chip${overdue ? ' overdue' : ''}`} title={p.install_date ? 'Install date' : 'Due date'}>
+              {p.install_date ? 'Install ' : ''}{formatDate(keyDate)}
             </span>
           )}
           <span className="board-card-owner" title={p.owner?.full_name || p.owner?.email || 'Unassigned'}>

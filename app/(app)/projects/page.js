@@ -1,9 +1,10 @@
 import { createClient } from '../../../lib/supabaseServer';
 import { Pagination } from '../../../components/Pagination';
-import { PAGE_SIZE, PROJECT_SORT_OPTIONS, resolveProjectSort, parsePage } from '../../../lib/listQuery';
+import { PAGE_SIZE, resolveProjectSort, parsePage } from '../../../lib/listQuery';
 import { formatDate } from '../../../lib/formatDate';
-import { ArchiveFilter, applyArchiveFilter } from '../../../components/ArchiveFilter';
-import { PROJECT_STATUSES, statusLabel, statusTone, isClosed } from '../../../lib/projectStatus';
+import { applyArchiveFilter } from '../../../components/ArchiveFilter';
+import { statusLabel, statusTone, isClosed } from '../../../lib/projectStatus';
+import { ProjectFilters } from '../../../components/ProjectFilters';
 import { ProjectViewTabs } from '../../../components/ProjectViewTabs';
 import { ExportCsvButton } from '../../../components/ExportCsvButton';
 import { screenTotals, screenLabel } from '../../../lib/screenCount';
@@ -26,7 +27,7 @@ export default async function ProjectsPage({ searchParams }) {
   let query = supabase
     .from('projects')
     .select(
-      'id, title, reference, site_location, status, priority, due_date, source, created_at, archived_at, client_id, screen_count, clients(id, name), owner:profiles!owner_id(id, full_name, email)',
+      'id, title, reference, site_location, status, priority, due_date, install_date, source, created_at, archived_at, client_id, screen_count, clients(id, name), owner:profiles!owner_id(id, full_name, email)',
       { count: 'exact' }
     );
 
@@ -100,34 +101,7 @@ export default async function ProjectsPage({ searchParams }) {
         )}
       </div>
 
-      <div className="panel" style={{ padding: '16px' }}>
-        <form className="filter-row" method="get">
-          <input type="text" name="q" placeholder="Search title, reference or site…" defaultValue={q} />
-          <select name="client" defaultValue={clientId}>
-            <option value="">All Clients</option>
-            {(clients || []).map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <select name="status" defaultValue={status}>
-            <option value="">All Statuses</option>
-            {PROJECT_STATUSES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
-          <select name="owner" defaultValue={owner} title="Owner">
-            <option value="">All Owners</option>
-            <option value="none">Unassigned</option>
-            {(owners || []).map((o) => (
-              <option key={o.id} value={o.id}>{o.full_name || o.email}</option>
-            ))}
-          </select>
-          <select name="sort" defaultValue={sort.value} title="Sort by">
-            {PROJECT_SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <ArchiveFilter value={archived} />
-          <button className="btn btn-primary" type="submit">Filter</button>
-          {hasFilters && <a className="btn btn-ghost" href="/projects">Clear</a>}
-        </form>
-      </div>
+      <ProjectFilters params={params} clients={clients} owners={owners} basePath="/projects" />
 
       <div className="panel" style={{ padding: '12px 16px' }}>
         <div className="toolbar" style={{ margin: '0 0 10px' }}>
@@ -158,6 +132,7 @@ export default async function ProjectsPage({ searchParams }) {
                 {p.site_location || 'No site set'}
                 {p.screen_count != null ? ` · ${screenLabel(p.screen_count)}` : ''}
                 {` · ${p.owner?.full_name || p.owner?.email || 'Unassigned'}`}
+                {p.install_date ? ` · Install ${formatDate(p.install_date)}` : ''}
                 {p.due_date ? ` · Due ${formatDate(p.due_date)}` : ''}
               </div>
             </div>

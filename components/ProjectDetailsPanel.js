@@ -28,6 +28,7 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     status: project.status || 'new',
     priority: project.priority || 'normal',
     due_date: project.due_date || '',
+    install_date: project.install_date || '',
     // Kept as '' rather than 0 when unset — see lib/screenCount.js. An empty
     // box means nobody has estimated it, which the pipeline figure reports
     // separately from a project that genuinely needs no screens.
@@ -63,6 +64,11 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     }
     if (key === 'due_date') {
       return { action: 'Due date changed', detail: `${from ? formatDate(from) : 'None'} → ${to ? formatDate(to) : 'None'}` };
+    }
+    // Worth its own line in the trail: this is the date engineers are booked
+    // against, so "who moved it and when" is a real question later.
+    if (key === 'install_date') {
+      return { action: 'Install date changed', detail: `${from ? formatDate(from) : 'Not booked'} → ${to ? formatDate(to) : 'Not booked'}` };
     }
     if (key === 'client_id') {
       return { action: 'Client changed', detail: `${clientName(from)} → ${clientName(to)}` };
@@ -122,7 +128,7 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     // the write is refused.
     setValues((v) => ({ ...v, [key]: value }));
 
-    const nullable = ['reference', 'site_location', 'address', 'description', 'due_date', 'owner_id', 'requested_by', 'requester_email', 'screen_count'];
+    const nullable = ['reference', 'site_location', 'address', 'description', 'due_date', 'install_date', 'owner_id', 'requested_by', 'requester_email', 'screen_count'];
     // screen_count is an integer column, so a cleared box has to be written as
     // null. Sending '' would be rejected outright, and sending 0 would claim
     // the project needs no screens.
@@ -320,6 +326,21 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
             />
           ) : (
             <div className="v">{screenLabel(values.screen_count === '' ? null : values.screen_count)}</div>
+          )}
+        </div>
+        <div className={`kv inline-kv${savingKey === 'install_date' ? ' saving' : ''}`}>
+          <div className="k" title="When engineers are booked to fit it. Separate from the client's requested deadline.">Install Date</div>
+          {canEdit ? (
+            <input
+              className="inline-select"
+              type="date"
+              min="2000-01-01"
+              max="2100-12-31"
+              value={values.install_date || ''}
+              onChange={(e) => save('install_date', e.target.value)}
+            />
+          ) : (
+            <div className="v">{values.install_date ? formatDate(values.install_date) : '—'}</div>
           )}
         </div>
         <TextField label="Reference" fieldKey="reference" placeholder="Add a job number…" />

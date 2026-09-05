@@ -1003,3 +1003,40 @@ a.attachment-name:hover{text-decoration:underline;}
 /* Off-screen rather than display:none — some bots skip hidden fields, but
    almost none compute layout. Never shown to a real user either way. */
 .honeypot{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;}
+
+/* ---------- Data table (projects table view) ---------- */
+/* Wide content scrolls inside its own box rather than pushing the page sideways. */
+.table-scroll{overflow-x:auto;margin:0 -16px;padding:0 16px;}
+.data-table{width:100%;border-collapse:collapse;font-size:13px;min-width:940px;}
+.data-table th,.data-table td{
+  text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);
+  vertical-align:top;white-space:nowrap;
+}
+.data-table thead th{
+  position:sticky;top:0;z-index:1;background:var(--surface);
+  font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;
+  color:var(--text-tertiary);border-bottom:1px solid var(--border-strong);
+}
+.data-table tbody tr:hover{background:var(--surface-hover);}
+.data-table .num{text-align:right;font-variant-numeric:tabular-nums;}
+.data-table tfoot td{
+  border-bottom:none;border-top:1px solid var(--border-strong);
+  font-size:12px;color:var(--text-secondary);
+}
+
+.th-sort{
+  display:inline-flex;align-items:center;gap:4px;
+  color:inherit;text-decoration:none;
+}
+.th-sort:hover{color:var(--text);}
+.th-sort.on{color:var(--accent);}
+.th-arrow{font-size:10px;}
+.data-table .num .th-sort{flex-direction:row-reverse;}
+
+.table-title{color:var(--text);font-weight:500;text-decoration:none;}
+.table-title:hover{color:var(--accent);}
+/* The only cell allowed to wrap — a reference plus a site name is often long. */
+.table-sub{font-size:11.5px;color:var(--text-tertiary);margin-top:2px;white-space:normal;max-width:280px;}
+.table-muted{color:var(--text-tertiary);}
+.table-late{color:var(--danger);font-weight:500;}
+.table-done{color:var(--success);}

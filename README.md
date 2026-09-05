@@ -197,6 +197,10 @@ hand-synced copies.
     projects so the pipeline can be reported in screens rather than only in
     job count. The column is nullable on purpose: null means nobody has
     estimated it yet, which the home page reports separately from zero.
+37. Also run `supabase/030_project_install_date.sql` — adds `install_date` to
+    projects: when engineers are booked, as distinct from `due_date`, which is
+    the client's requested deadline. Also stops an anonymous request setting
+    its own install date.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
