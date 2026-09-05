@@ -179,7 +179,6 @@ export function EditInstallationForm({ installation, areasWithUrls, clients, edi
 
       <div className="panel">
         <h2>Installed Screens</h2>
-        <h2>Installed Screens</h2>
         {areas.map((area, i) => (
           <InstallAreaCard
             key={area.id}

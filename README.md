@@ -29,25 +29,30 @@ gated dashboard and report.
   database link between a survey and its later install, by design (see
   `/install` above).
 - `/projects` — the project management side: every job as a project with a status,
-  due date, task list and activity trail. Internal staff only. Create one manually,
-  or let it arrive through a client request link.
+  owner, due date, task list, notes and activity trail. Internal staff only.
+  Create one manually, or let it arrive through a client request link.
+- `/projects/board` — the same projects as a kanban board, one column per status.
+  Drag a card to move it.
 - `/request/<slug>` — a client's own public request form. No account needed. Creates
   a project against that client with status "New Request". Links are listed, shared
   and switched on under Admin → Request Links.
 - `/admin/clients` — add/rename/delete clients, set each one's notification inbox.
 - `/admin/request-links` — every client's request-form link in one place, with
   copy/preview buttons, an on/off switch, and how many requests each has brought in.
+- `/admin/templates` — the starting state for a project: a task checklist plus a
+  default description, priority, owner and files. Optionally auto-applied to
+  projects raised through a client request link.
 - `/admin/accounts` — create accounts, manage roles and client access, reset
   passwords, deactivate/reactivate.
 - `/admin/activity` — a log of who did what across the admin pages.
 
-All four admin pages require a super admin account; `/admin` itself just
+All five admin pages require a super admin account; `/admin` itself just
 redirects to `/admin/clients`.
 
 The left-hand sidebar is grouped into collapsible sections — **Forms** (New
 Survey / New Install / New Visit) and **Site Visits** (Surveys / Installations /
 Engineer Visits / Site History) — with **Projects** as a single link above them
-and an **Admin** section (Clients / Request Links / Accounts / Activity) for
+and an **Admin** section (Clients / Request Links / Templates / Accounts / Activity) for
 super admins only. Whichever group holds the current page starts open.
 
 Who sees what: anyone not logged in (engineers) only ever gets the Forms group —
@@ -162,6 +167,15 @@ hand-synced copies.
     intentional: it discards any per-task assignments already entered. The
     profiles read policy from 018 is still needed — it now feeds the project
     Owner dropdown.
+28. Also run `supabase/021_project_notes.sql` — creates `project_notes`, the
+    chat-style log on a project. Separate from `project_activity`: that one is
+    written by the app, this one by people.
+29. Also run `supabase/022_project_templates.sql` — creates `project_templates`
+    and `project_template_tasks`, plus the trigger that copies a default
+    template's tasks onto any project raised through a client request link.
+30. Also run `supabase/023_richer_templates.sql` — lets a template carry a
+    default description, priority, owner and files, not just tasks, and
+    replaces the auto-apply trigger with one that copies them too.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
@@ -343,3 +357,87 @@ separate decision to make deliberately rather than inherit.
 Resend domain verification, same blocker as the survey notifications), no board
 / drag-and-drop view, no CSV export of projects, and no spam protection on the
 public request form.
+
+### Project views
+
+Two views over the same data, switchable from the tabs at the top; filters carry
+across when you switch.
+
+- **List** — paginated, sortable, searchable, with the archive filter and the
+  stats strip. The view for finding one specific project.
+- **Board** — a column per status, cards showing client, site, task progress,
+  note count, due date and owner initials. Drag a card into another column to
+  move the project; that writes the same activity line as changing the status on
+  the detail page, so the trail doesn't depend on which screen you used.
+
+The board isn't paginated — a board showing the first 25 cards is worse than no
+board — but it is capped at 300 with a banner telling you to filter if you hit
+it. There's no manual card ordering inside a column; cards sort by due date then
+newest.
+
+The statuses are the board's columns, defined in `lib/projectStatus.js`. **One
+constraint:** the anonymous intake policy in migration 018 pins client-raised
+projects to the status keyed `new`, so keep a status with that key or client
+request forms start failing. A project saved with a status that's since been
+removed from the list still appears in List view and raises a banner on the
+board rather than silently vanishing.
+
+### Editing a project
+
+The detail page edits in place, Planner-style: click a field, change it, it
+saves. No Edit button for day-to-day changes. Selects (status, owner, client,
+priority, due date) save on change; text fields commit on Enter or blur and
+abandon on Escape. Saves are optimistic and roll back if the write is refused.
+
+Changes worth reading later — status, owner, client, priority, due date — write a
+line to Activity. Retyping an address doesn't.
+
+There is no Edit screen at all any more — attachments are added and removed on
+the project page too. `/projects/new` is the only form left, and it only creates.
+
+### Notes vs Activity
+
+Two different logs, deliberately kept apart:
+
+- **Notes** — written by people. The running commentary that never fits a field:
+  dates being chased, what the client said on the phone, why something is on
+  hold. Enter posts, Shift+Enter makes a new line. You can edit and delete your
+  own; a super admin can delete anyone's, which is the escape hatch for someone
+  leaving mid-thread.
+- **Activity** — written by the app. The automatic audit trail of status moves,
+  owner changes, tasks and record links. Collapsed by default.
+
+Notes deliberately don't write to Activity, or every message would appear twice.
+
+### Project templates
+
+A template is a named checklist — "order hardware", "arrange survey", "book
+install" — managed under **Admin → Templates**. A template can apply to all
+clients or be scoped to one; a client-scoped template beats the all-clients one.
+
+Templates land on a project two ways:
+
+- **Automatically**, when a client raises a request through their link. Mark a
+  template "auto-apply to requests" and every incoming request for that scope
+  starts with those tasks on it. This is done by a database trigger, not app
+  code — the person submitting a request is anonymous and the task insert policy
+  requires internal staff, so they can't write their own tasks. The trigger runs
+  as definer and does it for them.
+- **Manually**, from a dropdown on the New Project form.
+
+The trigger only fires for `source = 'intake'`, so a PM who picks a template in
+the form doesn't get the checklist twice. Deleting a template leaves projects
+already created from it untouched.
+
+A template carries more than a checklist: a default description, priority, owner
+and files. Anything the request or the create form already supplies wins — a
+template description is only used when the requester left theirs blank. Each
+template task can also carry a "due in N days" offset, turned into a real due
+date when the template is applied.
+
+**Template files are shared, not duplicated.** A Postgres trigger can't copy an
+object in storage, so a project made from a template points at the template's
+file by path. That's why deleting a template — or removing a file from one —
+deliberately leaves the file in the bucket: a live project may still reference
+it. The cost is the odd orphaned object; the alternative is an attachment that
+silently 404s on a client's project.

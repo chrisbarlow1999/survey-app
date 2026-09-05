@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createClient } from '../lib/supabaseClient';
 import { LogoutButton } from './LogoutButton';
+import { ThemeToggle } from './ThemeToggle';
 import { buildNav } from '../lib/nav';
 
 function isActive(pathname, href) {
@@ -120,7 +121,10 @@ export function AppShell({ navItems, footer, checkSession, children }) {
             );
           })}
         </nav>
-        {activeFooter && <div className="sidebar-footer">{activeFooter}</div>}
+        <div className="sidebar-footer">
+          <ThemeToggle />
+          {activeFooter}
+        </div>
       </aside>
 
       {open && <div className="sidebar-backdrop no-print" onClick={() => setOpen(false)} />}

@@ -4,6 +4,7 @@ import { PAGE_SIZE, PROJECT_SORT_OPTIONS, resolveProjectSort, parsePage } from '
 import { formatDate } from '../../../lib/formatDate';
 import { ArchiveFilter, applyArchiveFilter } from '../../../components/ArchiveFilter';
 import { PROJECT_STATUSES, statusLabel, statusTone, isClosed } from '../../../lib/projectStatus';
+import { ProjectViewTabs } from '../../../components/ProjectViewTabs';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +64,9 @@ export default async function ProjectsPage({ searchParams }) {
   const total = count || 0;
 
   return (
-    <main>
+    <main className="project-main">
+      <ProjectViewTabs current="list" params={params} />
+
       <div className="stats-strip">
         <div className="stat-tile">
           <div className="stat-value">{allOpen.length}</div>

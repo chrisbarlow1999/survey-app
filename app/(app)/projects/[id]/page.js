@@ -2,9 +2,10 @@ import { createClient } from '../../../../lib/supabaseServer';
 import { ArchiveButton } from '../../../../components/ArchiveButton';
 import { DeleteProjectButton } from '../../../../components/DeleteProjectButton';
 import { ProjectTaskList } from '../../../../components/ProjectTaskList';
-import { formatBytes } from '../../../../lib/formatBytes';
 import { formatDate, formatDateTime } from '../../../../lib/formatDate';
-import { statusLabel, statusTone, priorityLabel } from '../../../../lib/projectStatus';
+import { ProjectDetailsPanel } from '../../../../components/ProjectDetailsPanel';
+import { ProjectNotes } from '../../../../components/ProjectNotes';
+import { ProjectAttachments } from '../../../../components/ProjectAttachments';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,9 @@ export default async function ProjectPage({ params }) {
     { data: surveys },
     { data: installations },
     { data: visits },
+    { data: notes },
+    { data: clients },
+    { data: owners },
   ] = await Promise.all([
     supabase
       .from('project_tasks')
@@ -52,6 +56,9 @@ export default async function ProjectPage({ params }) {
     supabase.from('surveys').select('id, site_location, survey_date').eq('project_id', id).is('archived_at', null),
     supabase.from('installations').select('id, site_location, install_date').eq('project_id', id).is('archived_at', null),
     supabase.from('visits').select('id, site_location, visit_date').eq('project_id', id).is('archived_at', null),
+    supabase.from('project_notes').select('*').eq('project_id', id).order('created_at', { ascending: true }),
+    supabase.from('clients').select('id, name').order('name', { ascending: true }),
+    supabase.from('profiles').select('id, full_name, email').in('role', ['user', 'super_admin']).eq('active', true).order('full_name', { ascending: true }),
   ]);
 
   const attachments = await Promise.all(
@@ -68,10 +75,9 @@ export default async function ProjectPage({ params }) {
   ];
 
   return (
-    <main>
+    <main className="project-main">
       <a className="back-link" href="/projects">&larr; Back to Projects</a>
       <div className="toolbar">
-        {canEdit && <a className="btn btn-ghost" href={`/projects/${project.id}/edit`}>Edit</a>}
         {canEdit && <ArchiveButton table="projects" recordId={project.id} archived={Boolean(project.archived_at)} />}
         {canEdit && (
           <DeleteProjectButton
@@ -87,50 +93,26 @@ export default async function ProjectPage({ params }) {
         </div>
       )}
 
-      <div className="panel">
-        <h2 style={{ fontSize: 20 }}>
-          {project.title}
-          {project.clients?.name ? <span className="client-badge" style={{ marginLeft: 10, verticalAlign: 'middle' }}>{project.clients.name}</span> : null}
-          {project.source === 'intake' ? <span className="client-badge intake-badge" style={{ marginLeft: 6, verticalAlign: 'middle' }}>Request</span> : null}
-        </h2>
-        <div className="kv-grid" style={{ marginTop: 12 }}>
-          <div className="kv">
-            <div className="k">Status</div>
-            <div className="v"><span className={`status-pill status-${statusTone(project.status)}`}>{statusLabel(project.status)}</span></div>
-          </div>
-          <div className="kv"><div className="k">Owner</div><div className="v">{project.owner?.full_name || project.owner?.email || 'Unassigned'}</div></div>
-          <div className="kv"><div className="k">Priority</div><div className="v">{priorityLabel(project.priority)}</div></div>
-          <div className="kv"><div className="k">Due Date</div><div className="v">{project.due_date ? formatDate(project.due_date) : '—'}</div></div>
-          <div className="kv"><div className="k">Reference</div><div className="v">{project.reference || '—'}</div></div>
-          <div className="kv"><div className="k">Site</div><div className="v">{project.site_location || '—'}</div></div>
-          <div className="kv"><div className="k">Address</div><div className="v">{project.address || '—'}</div></div>
-          <div className="kv"><div className="k">Requested By</div><div className="v">{project.requested_by || '—'}{project.requester_email ? ` (${project.requester_email})` : ''}</div></div>
-          <div className="kv"><div className="k">Raised</div><div className="v">{formatDateTime(project.created_at)}</div></div>
-        </div>
-        {project.description && (
-          <div className="kv" style={{ borderColor: 'var(--accent-cyan)' }}>
-            <div className="k">Description</div>
-            <div className="v">{project.description}</div>
-          </div>
-        )}
-        {attachments.length > 0 && (
-          <div className="kv" style={{ borderColor: 'var(--accent-cyan)' }}>
-            <div className="k">Attachments</div>
-            <div className="attachment-list" style={{ marginTop: 6 }}>
-              {attachments.map((a, i) => (
-                <div className="attachment-row" key={i}>
-                  {a.url ? (
-                    <a className="attachment-name" href={a.url} target="_blank" rel="noreferrer">{a.name}</a>
-                  ) : (
-                    <span className="attachment-name">{a.name}</span>
-                  )}
-                  <span className="attachment-size">{formatBytes(a.size)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Two columns: the project itself on the left, the running conversation
+          pinned alongside it on the right. Projects are desk work, never done
+          on a phone, so the width is worth using. */}
+      <div className="project-layout">
+        <div className="project-col-main">
+      <ProjectDetailsPanel
+        project={project}
+        clients={clients || []}
+        owners={owners || []}
+        actorName={actorName}
+        canEdit={canEdit}
+      />
+
+      <ProjectAttachments
+        projectId={project.id}
+        attachments={attachments}
+        existing={project.attachments || []}
+        actorName={actorName}
+        readOnly={!canEdit}
+      />
 
       <ProjectTaskList
         projectId={project.id}
@@ -183,6 +165,19 @@ export default async function ProjectPage({ params }) {
           )}
         </div>
       </details>
+        </div>
+
+        <aside className="project-col-side">
+          <ProjectNotes
+            projectId={project.id}
+            notes={notes || []}
+            currentUserId={user.id}
+            isSuperAdmin={myProfile?.role === 'super_admin'}
+            actorName={actorName}
+            readOnly={!canEdit}
+          />
+        </aside>
+      </div>
     </main>
   );
 }

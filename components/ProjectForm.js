@@ -4,39 +4,39 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
 import { AttachmentPicker } from './AttachmentPicker';
-import { uploadAttachments, newAttachmentItems, attachmentsFromExisting } from '../lib/uploadAttachments';
+import { uploadAttachments, newAttachmentItems } from '../lib/uploadAttachments';
 import { logProjectActivity } from '../lib/logProjectActivity';
-import { PROJECT_STATUSES, PROJECT_PRIORITIES, statusLabel } from '../lib/projectStatus';
+import { PROJECT_STATUSES, PROJECT_PRIORITIES } from '../lib/projectStatus';
 
-// One form for both create and edit. The other record types have separate New
-// and Edit components that have already drifted apart in small ways; there's no
-// reason to repeat that here when the fields are identical.
-export function ProjectForm({ project, clients, owners, actorName, userId }) {
+// Create only. Editing happens in place on the project page itself — there is
+// no Edit screen any more, so nothing here needs an update branch.
+export function ProjectForm({ clients, owners, templates, actorName, userId }) {
   const supabase = createClient();
   const router = useRouter();
-  const editing = Boolean(project);
 
   const [form, setForm] = useState({
-    title: project?.title || '',
-    reference: project?.reference || '',
-    clientId: project?.client_id || '',
-    siteLocation: project?.site_location || '',
-    address: project?.address || '',
-    description: project?.description || '',
-    requestedBy: project?.requested_by || '',
-    requesterEmail: project?.requester_email || '',
-    status: project?.status || 'new',
-    priority: project?.priority || 'normal',
-    dueDate: project?.due_date || '',
-    // A new project defaults to whoever is creating it — the common case, and
-    // it stops projects being raised with nobody answerable for them.
-    ownerId: project ? (project.owner_id || '') : userId,
+    title: '',
+    reference: '',
+    clientId: '',
+    siteLocation: '',
+    address: '',
+    description: '',
+    requestedBy: '',
+    requesterEmail: '',
+    status: 'new',
+    priority: 'normal',
+    dueDate: '',
+    // Defaults to whoever is creating it — the common case, and it stops
+    // projects being raised with nobody answerable for them.
+    ownerId: userId,
+    templateId: '',
   });
-  const [attachments, setAttachments] = useState(() => attachmentsFromExisting(project?.attachments));
+  const [attachments, setAttachments] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const originalPaths = (project?.attachments || []).map((a) => a.path).filter(Boolean);
+  // Templates scoped to the chosen client, plus the all-client ones.
+  const availableTemplates = templates.filter((t) => !t.client_id || t.client_id === form.clientId);
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -74,63 +74,57 @@ export function ProjectForm({ project, clients, owners, actorName, userId }) {
         return o ? (o.full_name || o.email) : 'Someone else';
       }
 
-      if (editing) {
-        const historyEntry = { name: actorName, edited_at: new Date().toISOString() };
-        const { error: updateErr } = await supabase
-          .from('projects')
-          .update({ ...payload, edit_history: [...(project.edit_history || []), historyEntry] })
-          .eq('id', project.id);
-        if (updateErr) throw updateErr;
-
-        // A status change is the thing people actually scan the activity feed
-        // for, so it gets its own line rather than a generic "edited".
-        if (project.status !== form.status) {
-          await logProjectActivity(supabase, {
-            projectId: project.id,
-            actorName,
-            action: 'Status changed',
-            detail: `${statusLabel(project.status)} → ${statusLabel(form.status)}`,
-          });
-        } else {
-          await logProjectActivity(supabase, { projectId: project.id, actorName, action: 'Project details edited' });
-        }
-
-        // Handing a project over is worth its own line too — it's the other
-        // change people scan the feed for.
-        if ((project.owner_id || '') !== (form.ownerId || '')) {
-          await logProjectActivity(supabase, {
-            projectId: project.id,
-            actorName,
-            action: 'Owner changed',
-            detail: `${ownerName(project.owner_id)} → ${ownerName(form.ownerId)}`,
-          });
-        }
-
-        const surviving = new Set(savedAttachments.map((a) => a.path));
-        const orphaned = originalPaths.filter((p) => !surviving.has(p));
-        if (orphaned.length) {
-          supabase.storage.from('survey-photos').remove(orphaned).catch(() => {});
-        }
-
-        router.push(`/projects/${project.id}`);
-        router.refresh();
-      } else {
-        const { data, error: insertErr } = await supabase
-          .from('projects')
-          .insert({ ...payload, source: 'manual', created_by: userId })
-          .select('id')
-          .single();
-        if (insertErr) throw insertErr;
-
-        await logProjectActivity(supabase, {
-          projectId: data.id,
-          actorName,
-          action: 'Project created',
-          detail: `Created manually · owner ${ownerName(form.ownerId)}`,
-        });
-        router.push(`/projects/${data.id}`);
-        router.refresh();
+      // A chosen template fills in whatever this form was left blank — the
+      // same rule the database trigger uses for client requests: anything the
+      // person actually typed wins.
+      const template = form.templateId ? templates.find((t) => t.id === form.templateId) : null;
+      if (template) {
+        if (!payload.description) payload.description = template.description || null;
+        if (!form.ownerId && template.default_owner_id) payload.owner_id = template.default_owner_id;
+        if (template.priority) payload.priority = template.priority;
+        // Files are shared by path rather than duplicated in storage, matching
+        // the trigger. Removing one from the template later won't break this
+        // project — see migration 023.
+        payload.attachments = [...savedAttachments, ...(template.attachments || [])];
       }
+
+      const { data, error: insertErr } = await supabase
+        .from('projects')
+        .insert({ ...payload, source: 'manual', created_by: userId })
+        .select('id')
+        .single();
+      if (insertErr) throw insertErr;
+
+      await logProjectActivity(supabase, {
+        projectId: data.id,
+        actorName,
+        action: 'Project created',
+        detail: `Created manually · owner ${ownerName(payload.owner_id)}`,
+      });
+
+      // Tasks are copied here rather than by the database trigger — that one
+      // only fires for client requests, so a PM choosing a template in this
+      // form doesn't end up with the checklist twice.
+      if (template) {
+        if (template.tasks.length) {
+          const rows = template.tasks.map((t, i) => ({
+            project_id: data.id,
+            title: t.title,
+            position: i,
+            due_date: t.due_offset_days == null
+              ? null
+              : new Date(Date.now() + t.due_offset_days * 86400000).toISOString().slice(0, 10),
+          }));
+          const { error: taskErr } = await supabase.from('project_tasks').insert(rows);
+          if (taskErr) console.error(taskErr);
+        }
+        await logProjectActivity(supabase, {
+          projectId: data.id, actorName, action: 'Template applied', detail: template.name,
+        });
+      }
+
+      router.push(`/projects/${data.id}`);
+      router.refresh();
     } catch (err) {
       console.error(err);
       setError('Something went wrong saving this project. Please try again.');
@@ -163,6 +157,23 @@ export function ProjectForm({ project, clients, owners, actorName, userId }) {
           <div className="field" style={{ flex: 2, minWidth: 220 }}>
             <label>Site Name</label>
             <input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} />
+          </div>
+        </div>
+        <div className="field-row">
+          <div className="field" style={{ flex: '1 1 100%' }}>
+            <label>Start From a Template</label>
+            <select value={form.templateId} onChange={(e) => setField('templateId', e.target.value)}>
+              <option value="">No template — start empty</option>
+              {availableTemplates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.tasks.length} task{t.tasks.length === 1 ? '' : 's'})
+                </option>
+              ))}
+            </select>
+            <p className="hint" style={{ margin: '4px 0 0' }}>
+              Copies a standard checklist onto the project. Pick a client first to see templates
+              scoped to them.
+            </p>
           </div>
         </div>
         <div className="field-row">
@@ -239,9 +250,9 @@ export function ProjectForm({ project, clients, owners, actorName, userId }) {
 
       {error && <p className="error-text">{error}</p>}
       <div className="actions-row">
-        <button className="btn btn-ghost" type="button" onClick={() => router.push(editing ? `/projects/${project.id}` : '/projects')}>Cancel</button>
+        <button className="btn btn-ghost" type="button" onClick={() => router.push('/projects')}>Cancel</button>
         <button className="btn btn-primary" type="submit" disabled={submitting}>
-          {submitting ? 'Saving…' : editing ? 'Save Changes' : 'Create Project'}
+          {submitting ? 'Creating…' : 'Create Project'}
         </button>
       </div>
     </form>

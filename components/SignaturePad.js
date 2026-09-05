@@ -23,7 +23,7 @@ export function SignaturePad({ onChange, existingUrl }) {
     e.preventDefault();
     drawingRef.current = true;
     const ctx = canvasRef.current.getContext('2d');
-    ctx.strokeStyle = '#111';
+    ctx.strokeStyle = '#111827';
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';

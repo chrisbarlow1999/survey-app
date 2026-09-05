@@ -16,23 +16,31 @@ export default async function NewProjectPage() {
     );
   }
 
-  // RLS would reject an insert against a client this account can't access, so
-  // only offer the ones they can actually use.
-  const [{ data: clients }, { data: owners }] = await Promise.all([
+  const [{ data: clients }, { data: owners }, { data: templates }, { data: templateTasks }] = await Promise.all([
     supabase.from('clients').select('id, name').order('name', { ascending: true }),
     supabase.from('profiles').select('id, full_name, email').in('role', ['user', 'super_admin']).eq('active', true).order('full_name', { ascending: true }),
+    supabase.from('project_templates').select('*').order('name', { ascending: true }),
+    supabase.from('project_template_tasks').select('*').order('position', { ascending: true }),
   ]);
 
+  const withTasks = (templates || []).map((t) => ({
+    ...t,
+    tasks: (templateTasks || []).filter((r) => r.template_id === t.id),
+  }));
+
   return (
-    <main>
+    <main className="project-main">
       <a className="back-link" href="/projects">&larr; Back to Projects</a>
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, margin: '14px 0' }}>New Project</h2>
-      <ProjectForm
-        clients={clients || []}
-        owners={owners || []}
-        actorName={profile?.full_name || profile?.email || 'Unknown user'}
-        userId={user.id}
-      />
+      <div style={{ maxWidth: 920 }}>
+        <ProjectForm
+          clients={clients || []}
+          owners={owners || []}
+          templates={withTasks}
+          actorName={profile?.full_name || profile?.email || 'Unknown user'}
+          userId={user.id}
+        />
+      </div>
     </main>
   );
 }
