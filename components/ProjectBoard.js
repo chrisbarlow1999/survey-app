@@ -6,6 +6,7 @@ import { createClient } from '../lib/supabaseClient';
 import { logProjectActivity } from '../lib/logProjectActivity';
 import { formatDate } from '../lib/formatDate';
 import { PROJECT_STATUSES, statusLabel } from '../lib/projectStatus';
+import { screenTotals } from '../lib/screenCount';
 
 // Kanban board, one column per status. Drag a card to a new column to move the
 // project — the same thing as changing its status on the detail page, and it
@@ -23,10 +24,13 @@ export function ProjectBoard({ projects, actorName, canEdit }) {
   const [savingId, setSavingId] = useState(null);
   const [error, setError] = useState('');
 
-  const columns = PROJECT_STATUSES.map((s) => ({
-    ...s,
-    cards: projects.filter((p) => p.status === s.key),
-  }));
+  const columns = PROJECT_STATUSES.map((s) => {
+    const cards = projects.filter((p) => p.status === s.key);
+    // Screens per column is the management read on the board: which stage is
+    // carrying the hardware, not just which stage is carrying the most jobs.
+    const { total, unestimated } = screenTotals(cards);
+    return { ...s, cards, screens: total, unestimated };
+  });
 
   // A project saved with a status no longer in the list would otherwise vanish
   // from the board entirely — surface it rather than lose it.
@@ -94,6 +98,12 @@ export function ProjectBoard({ projects, actorName, canEdit }) {
               {p.noteCount}
             </span>
           )}
+          {p.screen_count != null && (
+            <span className="board-chip" title={`${p.screen_count} screen${p.screen_count === 1 ? '' : 's'}`}>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 2.5h13v8h-13zM5.5 13.5h5M8 10.5v3" /></svg>
+              {p.screen_count}
+            </span>
+          )}
           {p.due_date && (
             <span className={`board-chip${overdue ? ' overdue' : ''}`} title="Due date">
               {formatDate(p.due_date)}
@@ -131,6 +141,12 @@ export function ProjectBoard({ projects, actorName, canEdit }) {
               {col.label}
               <span className="board-col-count">{col.cards.length}</span>
             </div>
+            {col.cards.length > 0 && (
+              <div className="board-col-screens">
+                {col.screens} screen{col.screens === 1 ? '' : 's'}
+                {col.unestimated > 0 ? ` · ${col.unestimated} not estimated` : ''}
+              </div>
+            )}
             <div className="board-col-body">
               {col.cards.map(renderCard)}
               {col.cards.length === 0 && <div className="board-col-empty">Nothing here</div>}

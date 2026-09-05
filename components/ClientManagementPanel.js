@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '../lib/supabaseClient';
 import { logAdminAction } from '../lib/logAdminAction';
 import { slugify } from '../lib/projectStatus';
@@ -23,8 +23,12 @@ export function ClientManagementPanel({ initialClients }) {
     return [...list].sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  // Same hydration reasoning as RequestLinkList: reading window during render
+  // makes the server and client markup disagree.
+  const [origin, setOrigin] = useState('');
+  useEffect(() => setOrigin(window.location.origin), []);
+
   function requestUrl(slug) {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
     return `${origin}/request/${slug}`;
   }
 

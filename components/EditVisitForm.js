@@ -7,6 +7,8 @@ import { VisitIssueCard } from './VisitIssueCard';
 import { SignaturePad } from './SignaturePad';
 import { AttachmentPicker } from './AttachmentPicker';
 import { uploadAttachments, newAttachmentItems, attachmentsFromExisting } from '../lib/uploadAttachments';
+import { compressImage } from '../lib/compressImage';
+import { SiteNameField } from './SiteNameField';
 
 function issueFromExisting(issue) {
   return {
@@ -78,8 +80,9 @@ export function EditVisitForm({ visit, issuesWithUrls, clients, editorName, sign
   function removeIssue(id) {
     setIssues((list) => list.filter((x) => x.id !== id));
   }
-  function handlePhoto(id, which, file) {
+  async function handlePhoto(id, which, file) {
     if (!file) return;
+    file = await compressImage(file);
     const fileKey = which === 'problem' ? 'problemFile' : 'workingFile';
     const previewKey = which === 'problem' ? 'problemPreview' : 'workingPreview';
     setIssues((list) => list.map((x) => (
@@ -183,7 +186,13 @@ export function EditVisitForm({ visit, issuesWithUrls, clients, editorName, sign
           <div className="field"><label className="req">Visit Date</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
         </div>
         <div className="field-row">
-          <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Name</label><input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} /></div>
+          <div className="field" style={{ flex: 2, minWidth: 240 }}>
+              <SiteNameField
+                value={form.siteLocation}
+                onChange={(v) => setField("siteLocation", v)}
+                clientId={form.clientId}
+              />
+            </div>
           <div className="field" style={{ flex: 1, minWidth: 200 }}>
             <label className="req">Client</label>
             <select value={form.clientId} onChange={(e) => setField('clientId', e.target.value)}>

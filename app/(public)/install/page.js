@@ -8,7 +8,14 @@ import { AttachmentPicker } from '../../../components/AttachmentPicker';
 import { uploadAttachments, newAttachmentItems } from '../../../lib/uploadAttachments';
 import {
   freshInstallArea, addScreenToInstallArea, removeScreenFromInstallArea, installAreaToStored,
+  installAreaToDraft, installAreaFromDraft,
 } from '../../../lib/installArea';
+import { compressImage } from '../../../lib/compressImage';
+import { SiteNameField } from '../../../components/SiteNameField';
+import { DraftBanner } from '../../../components/DraftBanner';
+import { loadDraft, clearDraft, useDraftAutosave } from '../../../lib/formDraft';
+
+const DRAFT_KEY = 'install';
 
 export default function NewInstallationPage() {
   const supabase = createClient();
@@ -23,12 +30,35 @@ export default function NewInstallationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const [draft, setDraft] = useState(null);
 
   useEffect(() => {
     supabase.from('clients').select('id, name').order('name').then(({ data }) => {
       if (data) setClients(data);
     });
   }, []);
+
+  useEffect(() => { setDraft(loadDraft(DRAFT_KEY)); }, []);
+
+  useDraftAutosave(
+    DRAFT_KEY,
+    {
+      form,
+      areas: areas.map(installAreaToDraft),
+      hadPhotos: areas.some((a) => a.screens.some((s) => s.photoFile)),
+    },
+    !done
+  );
+
+  function restoreDraft() {
+    setForm(draft.data.form);
+    setAreas((draft.data.areas || []).map(installAreaFromDraft));
+    setDraft(null);
+  }
+  function discardDraft() {
+    clearDraft(DRAFT_KEY);
+    setDraft(null);
+  }
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -57,8 +87,9 @@ export default function NewInstallationPage() {
       screens: a.screens.map((s) => (s.id === screenId ? { ...s, [key]: value } : s)),
     }));
   }
-  function handleScreenPhoto(id, screenId, file) {
+  async function handleScreenPhoto(id, screenId, file) {
     if (!file) return;
+    file = await compressImage(file);
     updateArea(id, (a) => ({
       ...a,
       screens: a.screens.map((s) => (s.id === screenId
@@ -127,6 +158,7 @@ export default function NewInstallationPage() {
         body: JSON.stringify({ installationId }),
       }).catch(() => {});
 
+      clearDraft(DRAFT_KEY);
       setDone(true);
     } catch (err) {
       console.error(err);
@@ -149,6 +181,9 @@ export default function NewInstallationPage() {
 
   return (
     <main>
+      {draft && (
+        <DraftBanner savedAt={draft.at} hadPhotos={draft.data?.hadPhotos} onRestore={restoreDraft} onDiscard={discardDraft} />
+      )}
       <form onSubmit={handleSubmit}>
         <div className="panel">
           <h2>Engineer Details</h2>
@@ -159,7 +194,13 @@ export default function NewInstallationPage() {
             <div className="field"><label className="req">Install Date</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
           </div>
           <div className="field-row">
-            <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Name</label><input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} /></div>
+            <div className="field" style={{ flex: 2, minWidth: 240 }}>
+              <SiteNameField
+                value={form.siteLocation}
+                onChange={(v) => setField("siteLocation", v)}
+                clientId={form.clientId}
+              />
+            </div>
             <div className="field" style={{ flex: 1, minWidth: 200 }}>
               <label className="req">Client</label>
               <select value={form.clientId} onChange={(e) => setField('clientId', e.target.value)}>

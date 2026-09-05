@@ -6,6 +6,7 @@ import { createClient } from '../lib/supabaseClient';
 import { logProjectActivity } from '../lib/logProjectActivity';
 import { formatDate, formatDateTime } from '../lib/formatDate';
 import { PROJECT_STATUSES, PROJECT_PRIORITIES, statusLabel, statusTone, priorityLabel } from '../lib/projectStatus';
+import { screenLabel } from '../lib/screenCount';
 
 // Planner-style editing: change a field in place, it saves, no Edit button and
 // no separate page. The full form still exists for creating a project and for
@@ -14,7 +15,7 @@ import { PROJECT_STATUSES, PROJECT_PRIORITIES, statusLabel, statusTone, priority
 // Everything saves through one `save()` so the activity trail is written the
 // same way regardless of which field moved, and so a failure can roll the
 // display back rather than leaving the screen lying about what's stored.
-export function ProjectDetailsPanel({ project, clients, owners, actorName, canEdit }) {
+export function ProjectDetailsPanel({ project, clients, owners, actorName, canEdit, surveyedScreens = 0 }) {
   const supabase = createClient();
   const router = useRouter();
 
@@ -27,6 +28,11 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     status: project.status || 'new',
     priority: project.priority || 'normal',
     due_date: project.due_date || '',
+    // Kept as '' rather than 0 when unset — see lib/screenCount.js. An empty
+    // box means nobody has estimated it, which the pipeline figure reports
+    // separately from a project that genuinely needs no screens.
+    screen_count: project.screen_count ?? '',
+    screen_count: project.screen_count ?? '',
     owner_id: project.owner_id || '',
     client_id: project.client_id || '',
     requested_by: project.requested_by || '',
@@ -61,6 +67,10 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     if (key === 'client_id') {
       return { action: 'Client changed', detail: `${clientName(from)} → ${clientName(to)}` };
     }
+    if (key === 'screen_count') {
+      const show = (v) => (v === '' || v == null ? 'Not estimated' : v);
+      return { action: 'Screen count changed', detail: show(from) + ' → ' + show(to) };
+    }
     if (key === 'priority') {
       return { action: 'Priority changed', detail: `${priorityLabel(from)} → ${priorityLabel(to)}` };
     }
@@ -74,6 +84,16 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
       setEditingKey(null);
       return;
     }
+    // The number input hands back a string while the stored value is a
+    // number, so the check above never matches for screens. Without this,
+    // tabbing out of an untouched box writes a row and logs "6 → 6".
+    if (key === 'screen_count') {
+      const norm = (v) => (v === '' || v == null ? null : Number(v));
+      if (norm(value) === norm(previous)) {
+        setEditingKey(null);
+        return;
+      }
+    }
     if (key === 'title' && !value) {
       setError('A project needs a title.');
       setEditingKey(null);
@@ -84,6 +104,16 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
       setEditingKey(null);
       return;
     }
+    // Caught here as well as by the check constraint in migration 029, so a
+    // typo reads as a sentence rather than as a raw Postgres violation.
+    if (key === 'screen_count' && value !== '') {
+      const n = Number(value);
+      if (!Number.isInteger(n) || n < 0 || n > 10000) {
+        setError('Screens needs to be a whole number between 0 and 10,000.');
+        setEditingKey(null);
+        return;
+      }
+    }
 
     setSavingKey(key);
     setError('');
@@ -92,10 +122,16 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     // the write is refused.
     setValues((v) => ({ ...v, [key]: value }));
 
-    const nullable = ['reference', 'site_location', 'address', 'description', 'due_date', 'owner_id', 'requested_by', 'requester_email'];
+    const nullable = ['reference', 'site_location', 'address', 'description', 'due_date', 'owner_id', 'requested_by', 'requester_email', 'screen_count'];
+    // screen_count is an integer column, so a cleared box has to be written as
+    // null. Sending '' would be rejected outright, and sending 0 would claim
+    // the project needs no screens.
+    const toWrite = key === 'screen_count'
+      ? (value === '' ? null : Number(value))
+      : (nullable.includes(key) ? (value || null) : value);
     const { error: updErr } = await supabase
       .from('projects')
-      .update({ [key]: nullable.includes(key) ? (value || null) : value })
+      .update({ [key]: toWrite })
       .eq('id', project.id);
 
     if (updErr) {
@@ -257,6 +293,33 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
             />
           ) : (
             <div className="v">{values.due_date ? formatDate(values.due_date) : '—'}</div>
+          )}
+        </div>
+        {/* Not click-to-edit like the text fields: this is the number
+            management reports on, so it's always visible and always ready to
+            type into, the same as Due Date. Saves on blur rather than on every
+            keystroke. */}
+        <div className={`kv inline-kv${savingKey === 'screen_count' ? ' saving' : ''}`}>
+          <div className="k" title={surveyedScreens > 0 ? 'Forecast for the pipeline. The surveyed figure is what engineers have actually recorded.' : undefined}>
+            Screens{surveyedScreens > 0 ? ` · ${surveyedScreens} surveyed` : ''}
+          </div>
+          {canEdit ? (
+            <input
+              className="inline-select"
+              type="number"
+              min="0"
+              max="10000"
+              step="1"
+              placeholder="Not estimated"
+              // Remounts when the stored value changes, so a rejected save
+              // rolls the box back instead of leaving the bad number on screen.
+              key={`screens-${values.screen_count}`}
+              defaultValue={values.screen_count}
+              onBlur={(e) => save('screen_count', e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+            />
+          ) : (
+            <div className="v">{screenLabel(values.screen_count === '' ? null : values.screen_count)}</div>
           )}
         </div>
         <TextField label="Reference" fieldKey="reference" placeholder="Add a job number…" />

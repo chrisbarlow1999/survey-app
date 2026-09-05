@@ -53,7 +53,10 @@ export default async function ProjectPage({ params }) {
       .eq('project_id', id)
       .order('created_at', { ascending: false })
       .limit(50),
-    supabase.from('surveys').select('id, site_location, survey_date').eq('project_id', id).is('archived_at', null),
+    // locations comes along so the project can show what was actually
+    // surveyed next to the PM's forecast — the two drifting apart is the
+    // thing worth noticing.
+    supabase.from('surveys').select('id, site_location, survey_date, locations').eq('project_id', id).is('archived_at', null),
     supabase.from('installations').select('id, site_location, install_date').eq('project_id', id).is('archived_at', null),
     supabase.from('visits').select('id, site_location, visit_date').eq('project_id', id).is('archived_at', null),
     supabase.from('project_notes').select('*').eq('project_id', id).order('created_at', { ascending: true }),
@@ -66,6 +69,11 @@ export default async function ProjectPage({ params }) {
       const { data } = await supabase.storage.from('survey-photos').createSignedUrl(a.path, 60 * 60);
       return { ...a, url: data?.signedUrl || null };
     })
+  );
+
+  const surveyedScreens = (surveys || []).reduce(
+    (n, s) => n + (s.locations || []).reduce((m, a) => m + ((a.screens || []).length || 0), 0),
+    0
   );
 
   const linked = [
@@ -104,6 +112,7 @@ export default async function ProjectPage({ params }) {
         owners={owners || []}
         actorName={actorName}
         canEdit={canEdit}
+        surveyedScreens={surveyedScreens}
       />
 
       <ProjectAttachments

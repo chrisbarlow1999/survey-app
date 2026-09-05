@@ -4,6 +4,8 @@ import { use, useEffect, useState } from 'react';
 import { createClient } from '../../../../lib/supabaseClient';
 import { AttachmentPicker } from '../../../../components/AttachmentPicker';
 import { uploadAttachments, newAttachmentItems } from '../../../../lib/uploadAttachments';
+import { DraftBanner } from '../../../../components/DraftBanner';
+import { loadDraft, clearDraft, useDraftAutosave } from '../../../../lib/formDraft';
 
 // The client-facing request form. One shared set of fields for every client —
 // the slug in the URL only decides which client the project lands against, and
@@ -20,12 +22,22 @@ export default function ClientRequestPage({ params }) {
   const [lookupDone, setLookupDone] = useState(false);
   const [form, setForm] = useState({
     title: '', siteLocation: '', address: '', description: '',
-    requestedBy: '', requesterEmail: '', dueDate: '',
+    requestedBy: '', requesterEmail: '', dueDate: '', screenCount: '',
   });
   const [attachments, setAttachments] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const [draft, setDraft] = useState(null);
+
+  // Bot deterrents. Both live in the browser and a script hitting PostgREST
+  // directly skips them entirely — the real backstop is the rate-limit trigger
+  // in migration 026. These only stop the cheap automated stuff.
+  const [trap, setTrap] = useState("");
+  const [openedAt] = useState(() => Date.now());
+
+  // Keyed per client, so a Compass draft never surfaces on the Starbucks form.
+  const draftKey = `request-${slug}`;
 
   useEffect(() => {
     supabase
@@ -39,6 +51,19 @@ export default function ClientRequestPage({ params }) {
       });
   }, [slug]);
 
+  useEffect(() => { setDraft(loadDraft(draftKey)); }, [draftKey]);
+
+  useDraftAutosave(draftKey, { form }, !done);
+
+  function restoreDraft() {
+    setForm((f) => ({ ...f, ...draft.data.form }));
+    setDraft(null);
+  }
+  function discardDraft() {
+    clearDraft(draftKey);
+    setDraft(null);
+  }
+
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
   }
@@ -48,6 +73,13 @@ export default function ClientRequestPage({ params }) {
     setError('');
     if (!form.title || !form.requestedBy) {
       setError('Please give the request a title and tell us who to contact.');
+      return;
+    }
+    // A filled honeypot, or a form completed impossibly fast, is a bot. Show
+    // the normal success screen rather than an error — telling a bot why it
+    // failed just helps it try again.
+    if (trap || Date.now() - openedAt < 3000) {
+      setDone(true);
       return;
     }
     setSubmitting(true);
@@ -62,11 +94,13 @@ export default function ClientRequestPage({ params }) {
         requested_by: form.requestedBy,
         requester_email: form.requesterEmail || null,
         due_date: form.dueDate || null,
+        screen_count: form.screenCount === '' ? null : Number(form.screenCount),
         attachments: savedAttachments,
         source: 'intake',
         status: 'new',
       });
       if (insertErr) throw insertErr;
+      clearDraft(draftKey);
       setDone(true);
     } catch (err) {
       console.error(err);
@@ -109,7 +143,26 @@ export default function ClientRequestPage({ params }) {
 
   return (
     <main>
+      {draft && (
+        <DraftBanner savedAt={draft.at} onRestore={restoreDraft} onDiscard={discardDraft} />
+      )}
       <form onSubmit={handleSubmit}>
+        {/* Honeypot: hidden from people, irresistible to form-filling bots.
+            aria-hidden and tabIndex keep it away from screen readers and the
+            keyboard, so a real user can never fill it by accident. */}
+        <div className="honeypot" aria-hidden="true">
+          <label htmlFor="company-website">Company website</label>
+          <input
+            id="company-website"
+            type="text"
+            name="company_website"
+            tabIndex={-1}
+            autoComplete="off"
+            value={trap}
+            onChange={(e) => setTrap(e.target.value)}
+          />
+        </div>
+
         <div className="panel">
           <h2>New Request — {client.name}</h2>
           <p className="hint">Tell us what you need and we'll come back to you. Nothing here needs an account.</p>
@@ -127,6 +180,22 @@ export default function ClientRequestPage({ params }) {
             <div className="field" style={{ flex: 1, minWidth: 180 }}>
               <label>Needed By</label>
               <input type="date" min="2000-01-01" max="2100-12-31" value={form.dueDate} onChange={(e) => setField('dueDate', e.target.value)} />
+            </div>
+            {/* Capped at 500 here rather than 10,000: the RLS policy in
+                migration 029 refuses anything higher from an anonymous
+                submitter, so the box shouldn't accept what the database
+                will throw back. */}
+            <div className="field" style={{ flex: 1, minWidth: 140 }}>
+              <label>How Many Screens?</label>
+              <input
+                type="number"
+                min="0"
+                max="500"
+                step="1"
+                placeholder="If you know"
+                value={form.screenCount}
+                onChange={(e) => setField('screenCount', e.target.value)}
+              />
             </div>
           </div>
           <div className="field-row">

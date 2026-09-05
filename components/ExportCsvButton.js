@@ -6,6 +6,7 @@ import { toCsv } from '../lib/toCsv';
 import { SCREEN_SIZES } from '../lib/screenSizes';
 import { formatDate, formatDateTime } from '../lib/formatDate';
 import { applyArchiveFilter } from './ArchiveFilter';
+import { statusLabel, priorityLabel } from '../lib/projectStatus';
 
 // Fetches the full filtered set when clicked rather than exporting just the
 // visible page — the list itself is paginated for performance, but an export
@@ -23,6 +24,11 @@ const INSTALLATION_HEADERS = [
   'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Phone', 'Install Date',
   'Address', 'Site Contact', 'Additional Info', 'Signed By', 'Submitted At',
   'Area #', 'Area Name', 'Screen #', 'Installed', 'Notes',
+];
+
+const PROJECT_HEADERS = [
+  'Title', 'Reference', 'Client', 'Status', 'Priority', 'Owner', 'Site', 'Address',
+  'Due Date', 'Screens', 'Requested By', 'Source', 'Open Tasks', 'Total Tasks', 'Created',
 ];
 
 const VISIT_HEADERS = [
@@ -127,10 +133,36 @@ function visitRows(visits) {
   return rows;
 }
 
+// One row per project rather than one per task. A PM exporting this wants the
+// portfolio, not a task dump; the counts carry the progress.
+function projectRows(projects) {
+  return projects.map((p) => [
+    p.title || '',
+    p.reference || '',
+    p.clients?.name || '',
+    statusLabel(p.status),
+    priorityLabel(p.priority),
+    p.owner?.full_name || p.owner?.email || 'Unassigned',
+    p.site_location || '',
+    p.address || '',
+    p.due_date ? formatDate(p.due_date) : '',
+    // Blank, not 0, when unestimated — a spreadsheet summing this column
+    // shouldn't count guesses that were never made.
+    p.screen_count ?? '',
+    p.requested_by || '',
+    p.source === 'intake' ? 'Client request' : 'Manual',
+    p.openTasks ?? '',
+    p.totalTasks ?? '',
+    p.created_at ? formatDateTime(p.created_at) : '',
+  ]);
+}
+
 const CONFIG = {
   surveys: {
     table: 'surveys',
     dateColumn: 'survey_date',
+    orderColumn: 'submitted_at',
+    searchColumns: ['site_location', 'engineer_first', 'engineer_last'],
     headers: SURVEY_HEADERS,
     buildRows: surveyRows,
     select: 'site_location, engineer_first, engineer_last, phone, survey_date, address, site_contact, engineer_days, engineer_count, additional_info, submitted_at, locations, clients(name)',
@@ -138,6 +170,8 @@ const CONFIG = {
   installations: {
     table: 'installations',
     dateColumn: 'install_date',
+    orderColumn: 'submitted_at',
+    searchColumns: ['site_location', 'engineer_first', 'engineer_last'],
     headers: INSTALLATION_HEADERS,
     buildRows: installationRows,
     select: 'site_location, engineer_first, engineer_last, phone, install_date, address, site_contact, additional_info, signed_by, submitted_at, locations, clients(name)',
@@ -145,11 +179,45 @@ const CONFIG = {
   visits: {
     table: 'visits',
     dateColumn: 'visit_date',
+    orderColumn: 'submitted_at',
+    searchColumns: ['site_location', 'engineer_first', 'engineer_last'],
     headers: VISIT_HEADERS,
     buildRows: visitRows,
     // Photo paths are deliberately omitted — signed URLs expire in an hour, so
     // a column of them would be worse than nothing.
     select: 'site_location, engineer_first, engineer_last, phone, visit_date, address, site_contact, additional_info, signature_path, submitted_at, issues, clients(name)',
+  },
+  projects: {
+    table: 'projects',
+    // Projects filter by status and owner rather than a date range, so there's
+    // deliberately no dateColumn — from/to never arrive for this kind.
+    orderColumn: 'created_at',
+    searchColumns: ['title', 'reference', 'site_location'],
+    headers: PROJECT_HEADERS,
+    buildRows: projectRows,
+    select: 'id, title, reference, site_location, address, status, priority, due_date, screen_count, requested_by, source, created_at, clients(name), owner:profiles!owner_id(full_name, email)',
+    // Task counts live in another table, so they need a second round trip.
+    // Tallied in one go rather than per project, to avoid an N+1.
+    enrich: async (supabase, rows) => {
+      const ids = rows.map((r) => r.id);
+      if (!ids.length) return rows;
+      const { data: tasks } = await supabase
+        .from('project_tasks')
+        .select('project_id, completed_at')
+        .in('project_id', ids);
+      const tally = {};
+      (tasks || []).forEach((t) => {
+        const e = tally[t.project_id] || { total: 0, open: 0 };
+        e.total += 1;
+        if (!t.completed_at) e.open += 1;
+        tally[t.project_id] = e;
+      });
+      return rows.map((r) => ({
+        ...r,
+        openTasks: tally[r.id]?.open || 0,
+        totalTasks: tally[r.id]?.total || 0,
+      }));
+    },
   },
 };
 
@@ -163,15 +231,17 @@ export function ExportCsvButton({ kind, filters }) {
     try {
       let query = applyArchiveFilter(supabase.from(config.table).select(config.select), filters.archived);
       if (filters.clientId) query = query.eq('client_id', filters.clientId);
-      if (filters.from) query = query.gte(config.dateColumn, filters.from);
-      if (filters.to) query = query.lte(config.dateColumn, filters.to);
+      if (config.dateColumn && filters.from) query = query.gte(config.dateColumn, filters.from);
+      if (config.dateColumn && filters.to) query = query.lte(config.dateColumn, filters.to);
+      // Projects-only filters. Harmless for the other kinds, which never send them.
+      if (filters.status) query = query.eq('status', filters.status);
+      if (filters.owner === 'none') query = query.is('owner_id', null);
+      else if (filters.owner) query = query.eq('owner_id', filters.owner);
       if (filters.q) {
         const safeQ = filters.q.replace(/[",()]/g, '');
-        query = query.or(
-          `site_location.ilike."%${safeQ}%",engineer_first.ilike."%${safeQ}%",engineer_last.ilike."%${safeQ}%"`
-        );
+        query = query.or(config.searchColumns.map((c) => `${c}.ilike."%${safeQ}%"`).join(','));
       }
-      query = query.order('submitted_at', { ascending: false });
+      query = query.order(config.orderColumn, { ascending: false });
 
       const { data, error } = await query;
       if (error) throw error;
@@ -181,7 +251,8 @@ export function ExportCsvButton({ kind, filters }) {
         return;
       }
 
-      const csv = toCsv(config.headers, config.buildRows(data));
+      const rows = config.enrich ? await config.enrich(supabase, data) : data;
+      const csv = toCsv(config.headers, config.buildRows(rows));
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

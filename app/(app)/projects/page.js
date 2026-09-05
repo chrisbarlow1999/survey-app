@@ -5,6 +5,8 @@ import { formatDate } from '../../../lib/formatDate';
 import { ArchiveFilter, applyArchiveFilter } from '../../../components/ArchiveFilter';
 import { PROJECT_STATUSES, statusLabel, statusTone, isClosed } from '../../../lib/projectStatus';
 import { ProjectViewTabs } from '../../../components/ProjectViewTabs';
+import { ExportCsvButton } from '../../../components/ExportCsvButton';
+import { screenTotals, screenLabel } from '../../../lib/screenCount';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +26,7 @@ export default async function ProjectsPage({ searchParams }) {
   let query = supabase
     .from('projects')
     .select(
-      'id, title, reference, site_location, status, priority, due_date, source, created_at, archived_at, client_id, clients(id, name), owner:profiles!owner_id(id, full_name, email)',
+      'id, title, reference, site_location, status, priority, due_date, source, created_at, archived_at, client_id, screen_count, clients(id, name), owner:profiles!owner_id(id, full_name, email)',
       { count: 'exact' }
     );
 
@@ -49,7 +51,7 @@ export default async function ProjectsPage({ searchParams }) {
   const [{ data: projects, error, count }, { data: clients }, { data: statsRows }, { data: openTasks }, { data: owners }] = await Promise.all([
     query,
     supabase.from('clients').select('id, name').order('name', { ascending: true }),
-    supabase.from('projects').select('status, clients(name)').is('archived_at', null),
+    supabase.from('projects').select('status, screen_count, clients(name)').is('archived_at', null),
     supabase.from('project_tasks').select('id').is('completed_at', null),
     supabase.from('profiles').select('id, full_name, email').in('role', ['user', 'super_admin']).eq('active', true).order('full_name', { ascending: true }),
   ]);
@@ -61,6 +63,9 @@ export default async function ProjectsPage({ searchParams }) {
     byClient[name] = (byClient[name] || 0) + 1;
   });
   const clientStats = Object.entries(byClient).sort((a, b) => b[1] - a[1]);
+  // Across open projects only, matching the Open Projects tile beside it — a
+  // pipeline figure that quietly included completed work would be nonsense.
+  const screens = screenTotals(allOpen);
   const total = count || 0;
 
   return (
@@ -75,6 +80,13 @@ export default async function ProjectsPage({ searchParams }) {
         <div className="stat-tile">
           <div className="stat-value">{(openTasks || []).length}</div>
           <div className="stat-label">Open Tasks</div>
+        </div>
+        <div className="stat-tile">
+          <div className="stat-value">{screens.total}</div>
+          <div className="stat-label">Screens In Pipeline</div>
+          {screens.unestimated > 0 && (
+            <div className="stat-note">{screens.unestimated} not estimated</div>
+          )}
         </div>
         {clientStats.length > 0 && (
           <div className="stat-tile stat-tile-clients">
@@ -120,6 +132,7 @@ export default async function ProjectsPage({ searchParams }) {
       <div className="panel" style={{ padding: '12px 16px' }}>
         <div className="toolbar" style={{ margin: '0 0 10px' }}>
           <a className="btn btn-primary" href="/projects/new">+ New Project</a>
+          <ExportCsvButton kind="projects" filters={{ q, clientId, status, owner, archived }} />
         </div>
         {error && <p className="error-text">Could not load projects: {error.message}</p>}
         {!error && (!projects || projects.length === 0) && (
@@ -143,6 +156,7 @@ export default async function ProjectsPage({ searchParams }) {
               <div className="meta">
                 {p.reference ? `${p.reference} · ` : ''}
                 {p.site_location || 'No site set'}
+                {p.screen_count != null ? ` · ${screenLabel(p.screen_count)}` : ''}
                 {` · ${p.owner?.full_name || p.owner?.email || 'Unassigned'}`}
                 {p.due_date ? ` · Due ${formatDate(p.due_date)}` : ''}
               </div>

@@ -5,7 +5,14 @@ import { createClient } from '../../lib/supabaseClient';
 import { AreaCard } from '../../components/AreaCard';
 import {
   freshArea, addScreenToArea, removeScreenFromArea, ensureOverlaysForScreens, areaToStored,
+  areaToDraft, areaFromDraft,
 } from '../../lib/surveyArea';
+import { compressImage, compressImages } from '../../lib/compressImage';
+import { SiteNameField } from '../../components/SiteNameField';
+import { DraftBanner } from '../../components/DraftBanner';
+import { loadDraft, clearDraft, useDraftAutosave } from '../../lib/formDraft';
+
+const DRAFT_KEY = 'survey';
 
 export default function NewSurveyPage() {
   const supabase = createClient();
@@ -18,12 +25,37 @@ export default function NewSurveyPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const [draft, setDraft] = useState(null);
 
   useEffect(() => {
     supabase.from('clients').select('id, name').order('name').then(({ data }) => {
       if (data) setClients(data);
     });
   }, []);
+
+  // Read once on mount rather than during render — localStorage doesn't exist
+  // on the server, and this page is prerendered.
+  useEffect(() => { setDraft(loadDraft(DRAFT_KEY)); }, []);
+
+  useDraftAutosave(
+    DRAFT_KEY,
+    {
+      form,
+      areas: areas.map(areaToDraft),
+      hadPhotos: areas.some((a) => a.photoFile || a.additionalPhotos.length > 0),
+    },
+    !done
+  );
+
+  function restoreDraft() {
+    setForm(draft.data.form);
+    setAreas((draft.data.areas || []).map(areaFromDraft));
+    setDraft(null);
+  }
+  function discardDraft() {
+    clearDraft(DRAFT_KEY);
+    setDraft(null);
+  }
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -40,8 +72,9 @@ export default function NewSurveyPage() {
   function removeArea(id) {
     setAreas((list) => list.filter((a) => a.id !== id));
   }
-  function handlePhoto(id, file) {
+  async function handlePhoto(id, file) {
     if (!file) return;
+    file = await compressImage(file);
     // Screens may already exist before a photo is added, so make sure each one
     // has a marker to drag once there's an image to drag it onto.
     updateArea(id, (a) => ensureOverlaysForScreens({
@@ -60,9 +93,9 @@ export default function NewSurveyPage() {
       screens: a.screens.map((s) => (s.id === screenId ? { ...s, [key]: value } : s)),
     }));
   }
-  function handleAdditionalPhotos(id, files) {
+  async function handleAdditionalPhotos(id, files) {
     if (!files || !files.length) return;
-    const added = Array.from(files).map((file) => ({
+    const added = (await compressImages(files)).map((file) => ({
       key: 'ap_' + Math.random().toString(36).slice(2, 9),
       file,
       preview: URL.createObjectURL(file),
@@ -129,6 +162,7 @@ export default function NewSurveyPage() {
         body: JSON.stringify({ surveyId }),
       }).catch(() => {}); // best-effort — never block the submission on this
 
+      clearDraft(DRAFT_KEY);
       setDone(true);
     } catch (err) {
       console.error(err);
@@ -151,6 +185,14 @@ export default function NewSurveyPage() {
 
   return (
     <main>
+      {draft && (
+        <DraftBanner
+          savedAt={draft.at}
+          hadPhotos={draft.data?.hadPhotos}
+          onRestore={restoreDraft}
+          onDiscard={discardDraft}
+        />
+      )}
       <form onSubmit={handleSubmit}>
         <div className="panel">
           <h2>Engineer Details</h2>
@@ -161,7 +203,13 @@ export default function NewSurveyPage() {
             <div className="field"><label className="req">Date of Survey</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
           </div>
           <div className="field-row">
-            <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Name</label><input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} /></div>
+            <div className="field" style={{ flex: 2, minWidth: 240 }}>
+              <SiteNameField
+                value={form.siteLocation}
+                onChange={(v) => setField("siteLocation", v)}
+                clientId={form.clientId}
+              />
+            </div>
             <div className="field" style={{ flex: 1, minWidth: 200 }}>
               <label className="req">Client</label>
               <select value={form.clientId} onChange={(e) => setField('clientId', e.target.value)}>

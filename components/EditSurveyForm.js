@@ -10,6 +10,8 @@ import {
   freshArea, addScreenToArea, removeScreenFromArea, ensureOverlaysForScreens,
   areaFromExisting, areaToStored,
 } from '../lib/surveyArea';
+import { compressImage, compressImages } from '../lib/compressImage';
+import { SiteNameField } from './SiteNameField';
 
 export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName }) {
   const supabase = createClient();
@@ -53,8 +55,9 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
   function removeArea(id) {
     setAreas((list) => list.filter((a) => a.id !== id));
   }
-  function handlePhoto(id, file) {
+  async function handlePhoto(id, file) {
     if (!file) return;
+    file = await compressImage(file);
     // Screens may already exist before a photo is added, so make sure each one
     // has a marker to drag once there's an image to drag it onto.
     updateArea(id, (a) => ensureOverlaysForScreens({
@@ -73,9 +76,9 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
       screens: a.screens.map((s) => (s.id === screenId ? { ...s, [key]: value } : s)),
     }));
   }
-  function handleAdditionalPhotos(id, files) {
+  async function handleAdditionalPhotos(id, files) {
     if (!files || !files.length) return;
-    const added = Array.from(files).map((file) => ({
+    const added = (await compressImages(files)).map((file) => ({
       key: 'ap_' + Math.random().toString(36).slice(2, 9),
       file,
       preview: URL.createObjectURL(file),
@@ -173,7 +176,13 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
           <div className="field"><label className="req">Date of Survey</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
         </div>
         <div className="field-row">
-          <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Name</label><input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} /></div>
+          <div className="field" style={{ flex: 2, minWidth: 240 }}>
+              <SiteNameField
+                value={form.siteLocation}
+                onChange={(v) => setField("siteLocation", v)}
+                clientId={form.clientId}
+              />
+            </div>
           <div className="field" style={{ flex: 1, minWidth: 200 }}>
             <label className="req">Client</label>
             <select value={form.clientId} onChange={(e) => setField('clientId', e.target.value)}>

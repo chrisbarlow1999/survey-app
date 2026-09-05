@@ -33,6 +33,9 @@ gated dashboard and report.
   Create one manually, or let it arrive through a client request link.
 - `/projects/board` — the same projects as a kanban board, one column per status.
   Drag a card to move it.
+- `/home` — the landing page: what needs you today, plus headline figures.
+- `/approve/<token>` — a client-facing approval page for one survey. No account
+  needed; the client approves or asks for changes and it lands back on the report.
 - `/request/<slug>` — a client's own public request form. No account needed. Creates
   a project against that client with status "New Request". Links are listed, shared
   and switched on under Admin → Request Links.
@@ -176,6 +179,24 @@ hand-synced copies.
 30. Also run `supabase/023_richer_templates.sql` — lets a template carry a
     default description, priority, owner and files, not just tasks, and
     replaces the auto-apply trigger with one that copies them too.
+31. Also run `supabase/024_site_name_suggestions.sql` — adds a security-definer
+    function backing the site-name autocomplete on the public forms. Engineers
+    are anonymous and can't read the record tables, so this is the only way
+    they can be offered existing site names.
+32. Also run `supabase/025_project_activity_tracking.sql` — adds
+    `projects.last_activity_at` and the trigger that maintains it, backing the
+    "gone quiet" panel on /home.
+33. Also run `supabase/026_intake_protection.sql` — rate limits the public
+    request form per client and caps attachment count and field lengths.
+34. Also run `supabase/027_survey_approval.sql` — adds the approval token and
+    status to surveys, plus the two functions the public approval page uses.
+35. Also run `supabase/028_site_summaries.sql` — moves /sites grouping and
+    paging into Postgres so the page no longer loads every record to group
+    them in memory.
+36. Also run `supabase/029_project_screen_count.sql` — adds `screen_count` to
+    projects so the pipeline can be reported in screens rather than only in
+    job count. The column is nullable on purpose: null means nobody has
+    estimated it yet, which the home page reports separately from zero.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
@@ -441,3 +462,96 @@ file by path. That's why deleting a template — or removing a file from one —
 deliberately leaves the file in the bucket: a live project may still reference
 it. The cost is the odd orphaned object; the alternative is an attachment that
 silently 404s on a client's project.
+
+## Getting a survey in cleanly
+
+Three things protect the quality of what engineers submit from a phone, on site.
+
+**Unfinished forms are kept.** Every public form saves what's been typed to the
+browser as you go, and offers to restore it if you come back. It covers the
+survey, install, visit and client request forms, each under its own key (the
+request form is keyed per client, so a Compass draft never appears on the
+Starbucks link). A draft is dropped after seven days, and cleared on a
+successful submit.
+
+**Photos are deliberately NOT in the draft.** A `File` can't be serialised and
+the `blob:` previews die with the page, so only typed content survives a reload
+— the restore banner says so explicitly, because someone who restores a draft
+and doesn't notice their photos are gone has submitted a useless survey. Putting
+the images in IndexedDB would fix it and is the obvious next step.
+
+**Photos are shrunk before upload.** `lib/compressImage.js` downscales to
+1600px on the long edge at JPEG quality 0.8 before anything is sent, which takes
+a typical phone photo from 4–8MB to a few hundred KB with no visible loss at the
+sizes the app ever displays them. It skips anything it can't safely re-encode —
+HEIC, GIF, SVG, and files already under 400KB — and returns the original
+untouched if compression fails or doesn't actually save space. It never throws:
+a compression problem must not stop someone filing a survey.
+
+**Site names autocomplete.** Site History matches on the site name as plain
+text, so a retyped name silently forks a site's history. Once a client is
+chosen, the Site Name field suggests sites that client already has on record.
+It's still free text — a genuinely new site is typeable — and it degrades to a
+plain input if the lookup fails.
+
+## Home
+
+`/home` is the landing page for anyone logged in — the first item in the sidebar.
+It answers "what needs me today" rather than listing everything:
+
+- **Figures**: open projects, how many you own, how many are past their due date,
+  your overdue tasks, and how much came in from site this month.
+- **Your tasks** — open tasks on projects you own, due within a week.
+- **Unassigned requests** — client requests nobody has picked up.
+- **Gone quiet** — open projects with nothing logged in 14 days. Backed by
+  `projects.last_activity_at`, maintained by a trigger (migration 025) so this
+  stays a single indexed query rather than a scan of the activity log. Notes
+  deliberately don't count as activity: talking about a job isn't progressing it.
+- **Latest from site** — the most recent surveys, installs and visits.
+
+Every panel is capped and links through to the full list; none of them is meant
+to be exhaustive.
+
+## Client approval
+
+A survey can be opened for client approval. That gives it an unguessable token
+and a link at `/approve/<token>` where the client — with no account — sees the
+client-facing version of that one survey and either approves it or asks for
+changes with a comment. The response lands back on the survey report.
+
+Nothing is emailed. Opening the link marks the survey "Awaiting client" and
+shows you the URL to send however you normally would; that's where email would
+hook in once it's unblocked.
+
+**How it stays safe.** `get_survey_for_approval()` is the whole public surface
+and never selects the internal columns — the engineer's phone, the resourcing
+estimates, the internal notes, the edit history. The Client PDF hides those with
+CSS; a public endpoint shouldn't be sending them at all.
+`submit_survey_approval()` can only write the approval columns, so a token is
+never a route to editing a survey. Withdrawing a link sets the status back and
+the page stops resolving.
+
+**Photos need `SUPABASE_SERVICE_ROLE_KEY`.** The bucket is private and an
+anonymous approver can't sign a URL, so `/api/approval-photo` does it for them —
+validating the token and checking the requested path actually belongs to that
+survey before signing, so a token can't be used to read the rest of the bucket.
+Without the key that route returns 503 and the photos simply don't appear; the
+rest of the page still works. The key is a copy-paste from Supabase → Settings →
+API, unlike the email blocker which needs DNS.
+
+## Request form abuse protection
+
+Three layers, in increasing order of how much they're worth:
+
+1. A **honeypot** field, hidden off-screen and out of the tab order.
+2. A **minimum time on page** — anything submitted within 3 seconds is treated
+   as a bot. Both of these show the normal success screen rather than an error,
+   since telling a bot why it failed only helps it.
+3. A **rate limit and size caps in Postgres** (migration 026) — at most 10
+   intake projects per client per hour, at most 10 attachments, and length caps
+   on the title and description.
+
+Only the third is real protection: the first two live in the browser and a
+script posting straight to PostgREST skips them. This stops casual abuse and
+runaway scripts, not a determined attacker — that would need a CAPTCHA or an
+edge rate limiter in front of the API.

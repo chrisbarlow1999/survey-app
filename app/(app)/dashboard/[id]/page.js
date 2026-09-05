@@ -9,6 +9,7 @@ import { ArchiveButton } from '../../../../components/ArchiveButton';
 import { formatBytes } from '../../../../lib/formatBytes';
 import { formatDate, formatDateTime } from '../../../../lib/formatDate';
 import { ProjectLinkPicker } from '../../../../components/ProjectLinkPicker';
+import { SurveyApprovalPanel } from '../../../../components/SurveyApprovalPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -160,6 +161,8 @@ export default async function ReportPage({ params }) {
           </div>
         )}
       </div>
+
+      <SurveyApprovalPanel survey={survey} canEdit={canEdit} />
 
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '20px 0 10px' }}>
         Screen Areas ({locationsWithUrls.length})

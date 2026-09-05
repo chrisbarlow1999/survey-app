@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
 import { logAdminAction } from '../lib/logAdminAction';
@@ -16,8 +16,15 @@ export function RequestLinkList({ rows }) {
   const [copiedId, setCopiedId] = useState(null);
   const [busyId, setBusyId] = useState(null);
 
+  // Read after mount, not during render. `typeof window` branching inside
+  // render makes the server emit "/request/x" and the client "https://…
+  // /request/x", which React reports as a hydration mismatch and then throws
+  // the whole subtree away to re-render it. Starting empty means the first
+  // client render matches the server, and the effect fills the origin in.
+  const [origin, setOrigin] = useState('');
+  useEffect(() => setOrigin(window.location.origin), []);
+
   function requestUrl(slug) {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
     return `${origin}/request/${slug}`;
   }
 

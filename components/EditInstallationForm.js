@@ -11,6 +11,8 @@ import {
   freshInstallArea, addScreenToInstallArea, removeScreenFromInstallArea,
   installAreaFromExisting, installAreaToStored, installPhotoPaths,
 } from '../lib/installArea';
+import { compressImage } from '../lib/compressImage';
+import { SiteNameField } from './SiteNameField';
 
 export function EditInstallationForm({ installation, areasWithUrls, clients, editorName, signatureUrl }) {
   const supabase = createClient();
@@ -66,8 +68,9 @@ export function EditInstallationForm({ installation, areasWithUrls, clients, edi
       screens: a.screens.map((s) => (s.id === screenId ? { ...s, [key]: value } : s)),
     }));
   }
-  function handleScreenPhoto(id, screenId, file) {
+  async function handleScreenPhoto(id, screenId, file) {
     if (!file) return;
+    file = await compressImage(file);
     updateArea(id, (a) => ({
       ...a,
       screens: a.screens.map((s) => (s.id === screenId
@@ -162,7 +165,13 @@ export function EditInstallationForm({ installation, areasWithUrls, clients, edi
           <div className="field"><label className="req">Install Date</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
         </div>
         <div className="field-row">
-          <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Name</label><input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} /></div>
+          <div className="field" style={{ flex: 2, minWidth: 240 }}>
+              <SiteNameField
+                value={form.siteLocation}
+                onChange={(v) => setField("siteLocation", v)}
+                clientId={form.clientId}
+              />
+            </div>
           <div className="field" style={{ flex: 1, minWidth: 200 }}>
             <label className="req">Client</label>
             <select value={form.clientId} onChange={(e) => setField('clientId', e.target.value)}>

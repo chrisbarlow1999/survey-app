@@ -6,6 +6,21 @@ import { VisitIssueCard } from '../../../components/VisitIssueCard';
 import { SignaturePad } from '../../../components/SignaturePad';
 import { AttachmentPicker } from '../../../components/AttachmentPicker';
 import { uploadAttachments, newAttachmentItems } from '../../../lib/uploadAttachments';
+import { compressImage } from '../../../lib/compressImage';
+import { SiteNameField } from '../../../components/SiteNameField';
+import { DraftBanner } from '../../../components/DraftBanner';
+import { loadDraft, clearDraft, useDraftAutosave } from '../../../lib/formDraft';
+
+const DRAFT_KEY = 'visit';
+
+// Photos can't live in a draft (see lib/formDraft.js).
+function issueToDraft(issue) {
+  const { problemFile, problemPreview, workingFile, workingPreview, ...rest } = issue;
+  return rest;
+}
+function issueFromDraft(issue) {
+  return { ...freshIssue(), ...issue, problemFile: null, problemPreview: null, workingFile: null, workingPreview: null };
+}
 
 function freshIssue() {
   return {
@@ -34,12 +49,35 @@ export default function NewVisitPage() {
   const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const [draft, setDraft] = useState(null);
 
   useEffect(() => {
     supabase.from('clients').select('id, name').order('name').then(({ data }) => {
       if (data) setClients(data);
     });
   }, []);
+
+  useEffect(() => { setDraft(loadDraft(DRAFT_KEY)); }, []);
+
+  useDraftAutosave(
+    DRAFT_KEY,
+    {
+      form,
+      issues: issues.map(issueToDraft),
+      hadPhotos: issues.some((i) => i.problemFile || i.workingFile),
+    },
+    !done
+  );
+
+  function restoreDraft() {
+    setForm(draft.data.form);
+    setIssues((draft.data.issues || []).map(issueFromDraft));
+    setDraft(null);
+  }
+  function discardDraft() {
+    clearDraft(DRAFT_KEY);
+    setDraft(null);
+  }
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -53,8 +91,9 @@ export default function NewVisitPage() {
   function removeIssue(id) {
     setIssues((list) => list.filter((x) => x.id !== id));
   }
-  function handlePhoto(id, which, file) {
+  async function handlePhoto(id, which, file) {
     if (!file) return;
+    file = await compressImage(file);
     const fileKey = which === 'problem' ? 'problemFile' : 'workingFile';
     const previewKey = which === 'problem' ? 'problemPreview' : 'workingPreview';
     setIssues((list) => list.map((x) => (
@@ -140,6 +179,7 @@ export default function NewVisitPage() {
       });
       if (insertErr) throw insertErr;
 
+      clearDraft(DRAFT_KEY);
       setDone(true);
     } catch (err) {
       console.error(err);
@@ -163,6 +203,9 @@ export default function NewVisitPage() {
 
   return (
     <main>
+      {draft && (
+        <DraftBanner savedAt={draft.at} hadPhotos={draft.data?.hadPhotos} onRestore={restoreDraft} onDiscard={discardDraft} />
+      )}
       <form onSubmit={handleSubmit}>
         <div className="panel">
           <h2>Engineer Details</h2>
@@ -173,7 +216,13 @@ export default function NewVisitPage() {
             <div className="field"><label className="req">Visit Date</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
           </div>
           <div className="field-row">
-            <div className="field" style={{ flex: 2, minWidth: 240 }}><label className="req">Site Name</label><input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} /></div>
+            <div className="field" style={{ flex: 2, minWidth: 240 }}>
+              <SiteNameField
+                value={form.siteLocation}
+                onChange={(v) => setField("siteLocation", v)}
+                clientId={form.clientId}
+              />
+            </div>
             <div className="field" style={{ flex: 1, minWidth: 200 }}>
               <label className="req">Client</label>
               <select value={form.clientId} onChange={(e) => setField('clientId', e.target.value)}>
