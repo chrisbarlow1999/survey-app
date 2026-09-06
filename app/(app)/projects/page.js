@@ -93,7 +93,7 @@ export default async function ProjectsPage({ searchParams }) {
           )}
         </div>
         <div className="stat-tile">
-          <div className="stat-value">{formatGBPShort(value.total)}</div>
+          <div className="stat-value">{value.quoted > 0 ? formatGBPShort(value.total) : '—'}</div>
           <div className="stat-label">Pipeline Value</div>
           {value.unquoted > 0 && (
             <div className="stat-note">{value.unquoted} not quoted</div>

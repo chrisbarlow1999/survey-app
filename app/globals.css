@@ -1170,3 +1170,16 @@ a.attachment-name:hover{text-decoration:underline;}
   color:var(--accent);text-decoration:none;
 }
 .search-all:hover{text-decoration:underline;}
+
+/* ---------- Reorder cards within a board column ---------- */
+.board-reorder{display:flex;flex-direction:column;gap:1px;flex-shrink:0;margin-left:4px;}
+.board-reorder button{
+  border:1px solid var(--border);background:var(--surface);color:var(--text-tertiary);
+  border-radius:3px;line-height:1;padding:1px 4px;font-size:8px;cursor:pointer;
+}
+.board-reorder button:hover:not(:disabled){
+  border-color:var(--accent);color:var(--accent);background:var(--accent-soft);
+}
+.board-reorder button:disabled{opacity:0.3;cursor:default;}
+/* The card itself is draggable, so a press on these must not start a drag. */
+.board-reorder button{-webkit-user-drag:none;}

@@ -232,6 +232,11 @@ hand-synced copies.
     quoted job value, so the pipeline can be reported in money as well as in
     screens. Nullable on purpose: null means not quoted yet, reported
     separately from zero. Also stops the public request form setting it.
+40. Also run `supabase/033_board_position.sql` — adds `projects.board_position`
+    and `set_board_order()`, so cards can be ordered by hand within a board
+    column. Null everywhere by default, which keeps the existing due-date
+    order; the first manual move in a column writes a position for every card
+    in it, so a column is either fully automatic or fully manual.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens

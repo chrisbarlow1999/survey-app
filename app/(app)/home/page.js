@@ -146,7 +146,9 @@ export default async function HomePage() {
         )}
         {!isClientViewer && (
           <div className="stat-tile">
-            <div className="stat-value">{formatGBPShort(value.total)}</div>
+            {/* A dash, not £0, when nothing has been quoted — £0 reads as a
+                priced-up pipeline worth nothing. */}
+            <div className="stat-value">{value.quoted > 0 ? formatGBPShort(value.total) : '—'}</div>
             <div className="stat-label">Pipeline Value</div>
             {value.unquoted > 0 && (
               <div className="stat-note">{value.unquoted} project{value.unquoted === 1 ? '' : 's'} not quoted</div>
@@ -180,7 +182,7 @@ export default async function HomePage() {
                   </div>
                 </div>
                 <div className="count">
-                  {formatGBP(valueStages[s.key]?.value || 0)}
+                  {valueStages[s.key]?.quoted > 0 ? formatGBP(valueStages[s.key].value) : '—'}
                   {valueStages[s.key]?.unquoted > 0 && (
                     <span className="schedule-screens">{valueStages[s.key].unquoted} not quoted</span>
                   )}

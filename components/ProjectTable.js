@@ -305,7 +305,7 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
                     real number. */}
                 <td colSpan={canEdit ? 5 : 4}>This page ({rows.length} project{rows.length === 1 ? '' : 's'})</td>
                 <td className="num">{pageScreens.total}</td>
-                <td className="num">{formatGBP(pageValue.total)}</td>
+                <td className="num">{pageValue.quoted > 0 ? formatGBP(pageValue.total) : '—'}</td>
                 <td colSpan={4}>
                   {[
                     pageScreens.unestimated > 0 ? `${pageScreens.unestimated} without a screen estimate` : null,

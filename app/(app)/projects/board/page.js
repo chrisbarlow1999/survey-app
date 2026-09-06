@@ -31,6 +31,10 @@ export default async function ProjectBoardPage({ searchParams }) {
 
   const [{ data: projects, error }, { data: clients }, { data: owners }, { data: { user } }] = await Promise.all([
     query
+      // Hand-placed cards first, in the order they were put in. A column
+      // nobody has touched is all nulls, so it falls through to the original
+      // due-date order untouched — see migration 033.
+      .order('board_position', { ascending: true, nullsFirst: false })
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(BOARD_LIMIT),

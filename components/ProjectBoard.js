@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
 import { logProjectActivity } from '../lib/logProjectActivity';
@@ -24,9 +24,19 @@ export function ProjectBoard({ projects, actorName, canEdit, params }) {
   const [overStatus, setOverStatus] = useState(null);
   const [savingId, setSavingId] = useState(null);
   const [error, setError] = useState('');
+  // Holds the order a click just produced, so a card moves the instant you
+  // press the arrow instead of after the server round trip. Cleared as soon as
+  // fresh props arrive, which is the real order taking over again.
+  const [localOrder, setLocalOrder] = useState(null);
+  useEffect(() => { setLocalOrder(null); }, [projects]);
 
   const columns = PROJECT_STATUSES.map((s) => {
-    const cards = projects.filter((p) => p.status === s.key);
+    let cards = projects.filter((p) => p.status === s.key);
+    const pending = localOrder && localOrder.status === s.key ? localOrder.ids : null;
+    if (pending) {
+      const byId = new Map(cards.map((c) => [c.id, c]));
+      cards = pending.map((id) => byId.get(id)).filter(Boolean);
+    }
     // Screens per column is the management read on the board: which stage is
     // carrying the hardware, not just which stage is carrying the most jobs.
     const { total, unestimated } = screenTotals(cards);
@@ -37,6 +47,45 @@ export function ProjectBoard({ projects, actorName, canEdit, params }) {
   // from the board entirely — surface it rather than lose it.
   const known = new Set(PROJECT_STATUSES.map((s) => s.key));
   const orphans = projects.filter((p) => !known.has(p.status));
+
+  // Up/down rather than drag-to-reorder. The existing drag drops onto a
+  // column, and turning every card into its own drop target is a lot of
+  // fiddly hit-testing for something two buttons do unambiguously — and these
+  // work with a keyboard, which a drag never has.
+  async function nudge(column, index, delta) {
+    if (!canEdit) return;
+    const target = index + delta;
+    if (target < 0 || target >= column.cards.length) return;
+
+    const ids = column.cards.map((c) => c.id);
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+
+    setLocalOrder({ status: column.key, ids });
+    setSavingId(column.cards[index].id);
+    setError('');
+
+    // The whole column is renumbered, not just the two that swapped: a column
+    // where some cards have a position and some don't would order half by hand
+    // and half by due date, which is impossible to reason about.
+    const { data, error: rpcErr } = await supabase.rpc('set_board_order', { p_ids: ids });
+    setSavingId(null);
+
+    if (rpcErr) {
+      console.error(rpcErr);
+      setError('Could not save that order.');
+      setLocalOrder(null);
+      return;
+    }
+    // The function returns how many rows it actually updated. RLS refuses
+    // silently, so a zero here is the difference between "saved" and "looked
+    // like it saved until you reloaded".
+    if (Number(data) < ids.length) {
+      setError('Some of those projects could not be reordered — you may not have edit access to them.');
+      setLocalOrder(null);
+      return;
+    }
+    router.refresh();
+  }
 
   async function moveTo(project, status) {
     if (!canEdit || project.status === status) return;
@@ -67,7 +116,7 @@ export function ProjectBoard({ projects, actorName, canEdit, params }) {
     if (project) moveTo(project, status);
   }
 
-  function renderCard(p) {
+  function renderCard(p, index, column) {
     const done = p.taskDone;
     const total = p.taskTotal;
     // The booked install wins over the client's requested deadline: it's the
@@ -80,7 +129,13 @@ export function ProjectBoard({ projects, actorName, canEdit, params }) {
         key={p.id}
         className={`board-card${savingId === p.id ? ' saving' : ''}`}
         draggable={canEdit}
-        onDragStart={() => setDragId(p.id)}
+        onDragStart={(e) => {
+          if (e.target.closest && e.target.closest('.board-reorder')) {
+            e.preventDefault();
+            return;
+          }
+          setDragId(p.id);
+        }}
         onDragEnd={() => { setDragId(null); setOverStatus(null); }}
       >
         <div className="board-card-tags">
@@ -118,6 +173,24 @@ export function ProjectBoard({ projects, actorName, canEdit, params }) {
           <span className="board-card-owner" title={p.owner?.full_name || p.owner?.email || 'Unassigned'}>
             {initials(p.owner)}
           </span>
+          {canEdit && column && column.cards.length > 1 && (
+            <span className="board-reorder">
+              <button
+                type="button"
+                aria-label={`Move ${p.title} up`}
+                title="Move up"
+                disabled={index === 0}
+                onClick={() => nudge(column, index, -1)}
+              >&#9650;</button>
+              <button
+                type="button"
+                aria-label={`Move ${p.title} down`}
+                title="Move down"
+                disabled={index === column.cards.length - 1}
+                onClick={() => nudge(column, index, 1)}
+              >&#9660;</button>
+            </span>
+          )}
         </div>
       </div>
     );
@@ -154,7 +227,7 @@ export function ProjectBoard({ projects, actorName, canEdit, params }) {
               </div>
             )}
             <div className="board-col-body">
-              {col.cards.map(renderCard)}
+              {col.cards.map((p, i) => renderCard(p, i, col))}
               {col.cards.length === 0 && <div className="board-col-empty">Nothing here</div>}
             </div>
           </div>
