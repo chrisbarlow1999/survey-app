@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Site Survey — Digital Signage',
-  description: 'Engineer intake and PM reporting for digital signage site surveys',
+  title: 'Digital Screens',
+  description: 'Surveys, installs, engineer visits and project management for digital signage',
 };
 
 // Runs before the first paint, so someone who has chosen dark never sees a

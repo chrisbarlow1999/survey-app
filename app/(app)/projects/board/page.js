@@ -18,7 +18,7 @@ export default async function ProjectBoardPage({ searchParams }) {
 
   let query = supabase
     .from('projects')
-    .select('id, title, site_location, status, due_date, install_date, source, created_at, client_id, screen_count, clients(id, name), owner:profiles!owner_id(id, full_name, email)')
+    .select('id, title, site_location, status, due_date, install_date, source, created_at, client_id, screen_count, value_gbp, clients(id, name), owner:profiles!owner_id(id, full_name, email)')
     .is('archived_at', null);
 
   if (clientId) query = query.eq('client_id', clientId);

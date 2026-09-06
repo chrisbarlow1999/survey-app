@@ -1,8 +1,13 @@
-# Site Survey — Digital Signage
+# Digital Screens
 
-There are three record types an engineer can submit without an account — a site
-survey, an install confirmation, and a visit (callout/repair) — each with its own
-gated dashboard and report.
+Surveys, installs, engineer visits and project management for digital signage at
+Linney. It started as a survey form; the survey is now one step in a longer
+run — see "Survey to Install" for the whole flow.
+
+Three record types an engineer can submit without an account — a site survey, an
+install confirmation, and a visit (callout/repair) — each with its own gated
+dashboard and report. Those keep their own names: a site survey is still a site
+survey, and the report a client receives still says so.
 
 - `/` — public site survey form. No account needed, anyone with the link can submit.
   Screens are grouped into **areas**: an area is a place ("Bar wall") sharing one
@@ -46,6 +51,10 @@ gated dashboard and report.
   project + site so a rollout with a survey per venue keeps all of them. Where
   that's wrong — a site surveyed in phases rather than re-surveyed — the
   project page's *Surveyed screens* panel lets a PM overrule it per survey.
+- `/search` — one box for everything: projects, sites, surveys, installs and
+  engineer visits, matched on site name, reference or engineer. Each section
+  links through to its own list, which is where filtering and paging live. The
+  box lives at the top of the sidebar and only appears once you're signed in.
 - `/home` — the landing page: what needs you today, plus headline figures.
 - `/approve/<token>` — a client-facing approval page for one survey. No account
   needed; the client approves or asks for changes and it lands back on the report.
@@ -219,6 +228,10 @@ hand-synced copies.
     latest-survey-per-site rule, true = always count, false = never count) so a
     PM can say whether two surveys of one site are a re-survey or a site done
     in phases. Also stops the public form setting it.
+39. Also run `supabase/032_project_value.sql` — adds `projects.value_gbp`, the
+    quoted job value, so the pipeline can be reported in money as well as in
+    screens. Nullable on purpose: null means not quoted yet, reported
+    separately from zero. Also stops the public request form setting it.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens

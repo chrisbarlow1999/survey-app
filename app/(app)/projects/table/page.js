@@ -7,6 +7,7 @@ import { ProjectFilters } from '../../../../components/ProjectFilters';
 import { ProjectTable } from '../../../../components/ProjectTable';
 import { ExportCsvButton } from '../../../../components/ExportCsvButton';
 import { screenTotals } from '../../../../lib/screenCount';
+import { valueTotals, formatGBPShort } from '../../../../lib/money';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,7 +57,7 @@ export default async function ProjectsTablePage({ searchParams }) {
     supabase
       .from('projects')
       .select(
-        'id, title, reference, site_location, status, priority, due_date, install_date, screen_count, source, created_at, archived_at, client_id, clients(id, name), owner:profiles!owner_id(id, full_name, email)',
+        'id, title, reference, site_location, status, priority, due_date, install_date, screen_count, value_gbp, source, created_at, archived_at, client_id, clients(id, name), owner:profiles!owner_id(id, full_name, email)',
         { count: 'exact' }
       )
   )
@@ -65,7 +66,7 @@ export default async function ProjectsTablePage({ searchParams }) {
 
   // Every match, not just this page. One narrow column, no join, no range —
   // the figure someone would actually quote off the back of a filter.
-  const totalsQuery = applyFilters(supabase.from('projects').select('screen_count'));
+  const totalsQuery = applyFilters(supabase.from('projects').select('screen_count, value_gbp'));
 
   const [{ data: projects, error, count }, { data: clients }, { data: owners }, { data: matching }] =
     await Promise.all([
@@ -99,6 +100,7 @@ export default async function ProjectsTablePage({ searchParams }) {
   }
 
   const screens = screenTotals(matching);
+  const value = valueTotals(matching);
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -119,6 +121,13 @@ export default async function ProjectsTablePage({ searchParams }) {
           <div className="stat-label">{hasFilters ? 'Screens Matching' : 'Screens In Pipeline'}</div>
           {screens.unestimated > 0 && (
             <div className="stat-note">{screens.unestimated} not estimated</div>
+          )}
+        </div>
+        <div className="stat-tile">
+          <div className="stat-value">{formatGBPShort(value.total)}</div>
+          <div className="stat-label">{hasFilters ? 'Value Matching' : 'Pipeline Value'}</div>
+          {value.unquoted > 0 && (
+            <div className="stat-note">{value.unquoted} not quoted</div>
           )}
         </div>
       </div>

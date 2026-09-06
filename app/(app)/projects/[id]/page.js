@@ -1,6 +1,7 @@
 import { createClient } from '../../../../lib/supabaseServer';
 import { ArchiveButton } from '../../../../components/ArchiveButton';
 import { DeleteProjectButton } from '../../../../components/DeleteProjectButton';
+import { DuplicateProjectButton } from '../../../../components/DuplicateProjectButton';
 import { ProjectTaskList } from '../../../../components/ProjectTaskList';
 import { formatDate, formatDateTime } from '../../../../lib/formatDate';
 import { ProjectDetailsPanel } from '../../../../components/ProjectDetailsPanel';
@@ -100,6 +101,9 @@ export default async function ProjectPage({ params, searchParams }) {
     <main className="project-main">
       <a className="back-link" href={backHref}>&larr; {backLabel(backHref)}</a>
       <div className="toolbar">
+        {canEdit && (
+          <DuplicateProjectButton project={project} tasks={tasks || []} actorName={actorName} />
+        )}
         {canEdit && <ArchiveButton table="projects" recordId={project.id} archived={Boolean(project.archived_at)} />}
         {canEdit && (
           <DeleteProjectButton

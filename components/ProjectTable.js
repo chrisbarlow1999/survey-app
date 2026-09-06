@@ -7,6 +7,7 @@ import { formatDate } from '../lib/formatDate';
 import { PROJECT_STATUSES, statusLabel, statusTone } from '../lib/projectStatus';
 import { resolveProjectSort } from '../lib/listQuery';
 import { screenTotals } from '../lib/screenCount';
+import { valueTotals, formatGBP } from '../lib/money';
 import { projectHref } from '../lib/projectBackLink';
 
 // The dense management read on the pipeline: one row per project, the columns
@@ -32,6 +33,7 @@ import { projectHref } from '../lib/projectBackLink';
 const COLS = {
   title: [{ v: 'title_az', a: '↑' }, { v: 'title_za', a: '↓' }],
   screens: [{ v: 'screens_desc', a: '↓' }, { v: 'screens_asc', a: '↑' }],
+  value: [{ v: 'value_desc', a: '↓' }, { v: 'value_asc', a: '↑' }],
   install: [{ v: 'install_asc', a: '↑' }, { v: 'install_desc', a: '↓' }],
   due: [{ v: 'due_asc', a: '↑' }, { v: 'due_desc', a: '↓' }],
   created: [{ v: 'newest', a: '↓' }, { v: 'oldest', a: '↑' }],
@@ -69,6 +71,7 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
   const router = useRouter();
   const rows = projects || [];
   const pageScreens = screenTotals(rows);
+  const pageValue = valueTotals(rows);
 
   const [selected, setSelected] = useState(() => new Set());
   const [busy, setBusy] = useState(false);
@@ -230,6 +233,7 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
               <th>Stage</th>
               <th>Owner</th>
               <SortHeader label="Screens" col="screens" params={params} basePath={basePath} className="num" />
+              <SortHeader label="Value" col="value" params={params} basePath={basePath} className="num" />
               <SortHeader label="Install" col="install" params={params} basePath={basePath} />
               <SortHeader label="Due" col="due" params={params} basePath={basePath} />
               <th className="num">Tasks</th>
@@ -272,6 +276,10 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
                   <td className="num">
                     {p.screen_count == null ? <span className="table-muted">—</span> : p.screen_count}
                   </td>
+                  {/* Blank, not £0, when unquoted — see lib/money.js. */}
+                  <td className="num">
+                    {p.value_gbp == null ? <span className="table-muted">—</span> : formatGBP(p.value_gbp)}
+                  </td>
                   <td className={installLate ? 'table-late' : ''}>
                     {p.install_date ? formatDate(p.install_date) : <span className="table-muted">—</span>}
                   </td>
@@ -297,10 +305,12 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
                     real number. */}
                 <td colSpan={canEdit ? 5 : 4}>This page ({rows.length} project{rows.length === 1 ? '' : 's'})</td>
                 <td className="num">{pageScreens.total}</td>
+                <td className="num">{formatGBP(pageValue.total)}</td>
                 <td colSpan={4}>
-                  {pageScreens.unestimated > 0
-                    ? `${pageScreens.unestimated} without a screen estimate`
-                    : ''}
+                  {[
+                    pageScreens.unestimated > 0 ? `${pageScreens.unestimated} without a screen estimate` : null,
+                    pageValue.unquoted > 0 ? `${pageValue.unquoted} not quoted` : null,
+                  ].filter(Boolean).join(' · ')}
                 </td>
               </tr>
             </tfoot>

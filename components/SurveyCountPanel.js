@@ -81,7 +81,7 @@ export function SurveyCountPanel({ projectId, entries, actorName, readOnly }) {
           <div>
             <div className="site">
               <a href={`/dashboard/${survey.id}`}>{survey.site_location || 'Untitled site'}</a>
-              <span className="client-badge">{screenCountOf(survey)} screens</span>
+              <span className="client-badge">{screenCountOf(survey)} screen{screenCountOf(survey) === 1 ? '' : 's'}</span>
             </div>
             <div className="meta">
               {survey.survey_date ? formatDate(survey.survey_date) : 'No date'} · {INCLUSION_REASON[reason]}

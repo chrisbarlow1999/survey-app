@@ -2,6 +2,7 @@ import { createClient } from '../../../lib/supabaseServer';
 import { formatDate, formatDateTime } from '../../../lib/formatDate';
 import { PROJECT_STATUSES, statusLabel, statusTone, CLOSED_STATUSES } from '../../../lib/projectStatus';
 import { screenTotals, screensByStatus } from '../../../lib/screenCount';
+import { valueTotals, valueByStatus, formatGBP, formatGBPShort } from '../../../lib/money';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,7 @@ export default async function HomePage() {
     { count: visitsThisMonth },
   ] = await Promise.all([
     isClientViewer ? none : supabase
-      .from('projects').select('id, status, due_date, owner_id, screen_count')
+      .from('projects').select('id, status, due_date, owner_id, screen_count, value_gbp')
       .is('archived_at', null).not('status', 'in', closed),
     isClientViewer ? none : supabase
       .from('project_tasks')
@@ -91,6 +92,10 @@ export default async function HomePage() {
   // still coming rather than what has ever been sold.
   const screens = screenTotals(projects);
   const stages = screensByStatus(projects, PROJECT_STATUSES);
+  const value = valueTotals(projects);
+  // Keyed by status so the two lists can be read together without a second
+  // pass — same projects, same order, one row each.
+  const valueStages = Object.fromEntries(valueByStatus(projects, PROJECT_STATUSES).map((v) => [v.key, v]));
 
   const tasks = myTasks || [];
   const overdueTasks = tasks.filter((t) => t.due_date < today);
@@ -139,6 +144,15 @@ export default async function HomePage() {
             )}
           </div>
         )}
+        {!isClientViewer && (
+          <div className="stat-tile">
+            <div className="stat-value">{formatGBPShort(value.total)}</div>
+            <div className="stat-label">Pipeline Value</div>
+            {value.unquoted > 0 && (
+              <div className="stat-note">{value.unquoted} project{value.unquoted === 1 ? '' : 's'} not quoted</div>
+            )}
+          </div>
+        )}
         <div className="stat-tile">
           <div className="stat-value">{thisMonth}</div>
           <div className="stat-label">Submitted This Month</div>
@@ -148,10 +162,10 @@ export default async function HomePage() {
       <div className="home-grid">
         {!isClientViewer && (
           <div className="panel">
-            <h2>Screens by stage</h2>
+            <h2>Pipeline by stage</h2>
             <p className="hint">
-              Forecast screens across open projects, by where they&apos;ve got to. Pick a stage to see
-              what&apos;s in it.
+              Open projects by where they&apos;ve got to, with the forecast screens and quoted value in
+              each. Pick a stage to see what&apos;s in it.
             </p>
             {stages.length === 0 && <div className="empty-state">No open projects.</div>}
             {stages.map((s) => (
@@ -161,11 +175,16 @@ export default async function HomePage() {
                     <span className={`status-pill status-${s.tone}`}>{s.label}</span>
                   </div>
                   <div className="meta">
-                    {s.projects} project{s.projects === 1 ? '' : 's'}
+                    {s.projects} project{s.projects === 1 ? '' : 's'} · {s.screens} screen{s.screens === 1 ? '' : 's'}
                     {s.unestimated > 0 ? ` · ${s.unestimated} not estimated` : ''}
                   </div>
                 </div>
-                <div className="count">{s.screens} screen{s.screens === 1 ? '' : 's'}</div>
+                <div className="count">
+                  {formatGBP(valueStages[s.key]?.value || 0)}
+                  {valueStages[s.key]?.unquoted > 0 && (
+                    <span className="schedule-screens">{valueStages[s.key].unquoted} not quoted</span>
+                  )}
+                </div>
               </a>
             ))}
           </div>

@@ -58,6 +58,11 @@ export function AppShell({ navItems, footer, checkSession, children }) {
 
   const items = sessionNav || navItems;
   const activeFooter = sessionNav ? <LogoutButton name={accountName} /> : footer;
+  // checkSession is only set by the public layout, so its absence means we're
+  // inside the gated app and there is definitely a session. On a public page,
+  // sessionNav appears once the client-side check finds one. Anonymous
+  // visitors get no search box — they have nothing they're allowed to search.
+  const authed = !checkSession || Boolean(sessionNav);
 
   function toggleGroup(label) {
     setExpandedGroups((s) => {
@@ -75,7 +80,17 @@ export function AppShell({ navItems, footer, checkSession, children }) {
       </button>
 
       <aside className={`sidebar no-print${open ? ' open' : ''}`}>
-        <a href="/" className="brand"><span className="mark"></span>Site Survey</a>
+        <a href="/" className="brand"><span className="mark"></span>Digital Screens</a>
+        {authed && (
+          <form className="sidebar-search" method="get" action="/search" role="search">
+            <input
+              type="search"
+              name="q"
+              placeholder="Search everything…"
+              aria-label="Search projects, sites and records"
+            />
+          </form>
+        )}
         <nav>
           {items.map((item) => {
             if (item.children) {

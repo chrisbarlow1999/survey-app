@@ -9,6 +9,7 @@ import { projectHref } from '../../../lib/projectBackLink';
 import { ProjectViewTabs } from '../../../components/ProjectViewTabs';
 import { ExportCsvButton } from '../../../components/ExportCsvButton';
 import { screenTotals, screenLabel } from '../../../lib/screenCount';
+import { valueTotals, formatGBPShort } from '../../../lib/money';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ export default async function ProjectsPage({ searchParams }) {
   let query = supabase
     .from('projects')
     .select(
-      'id, title, reference, site_location, status, priority, due_date, install_date, source, created_at, archived_at, client_id, screen_count, clients(id, name), owner:profiles!owner_id(id, full_name, email)',
+      'id, title, reference, site_location, status, priority, due_date, install_date, source, created_at, archived_at, client_id, screen_count, value_gbp, clients(id, name), owner:profiles!owner_id(id, full_name, email)',
       { count: 'exact' }
     );
 
@@ -53,7 +54,7 @@ export default async function ProjectsPage({ searchParams }) {
   const [{ data: projects, error, count }, { data: clients }, { data: statsRows }, { data: openTasks }, { data: owners }] = await Promise.all([
     query,
     supabase.from('clients').select('id, name').order('name', { ascending: true }),
-    supabase.from('projects').select('status, screen_count, clients(name)').is('archived_at', null),
+    supabase.from('projects').select('status, screen_count, value_gbp, clients(name)').is('archived_at', null),
     supabase.from('project_tasks').select('id').is('completed_at', null),
     supabase.from('profiles').select('id, full_name, email').in('role', ['user', 'super_admin']).eq('active', true).order('full_name', { ascending: true }),
   ]);
@@ -68,6 +69,7 @@ export default async function ProjectsPage({ searchParams }) {
   // Across open projects only, matching the Open Projects tile beside it — a
   // pipeline figure that quietly included completed work would be nonsense.
   const screens = screenTotals(allOpen);
+  const value = valueTotals(allOpen);
   const total = count || 0;
 
   return (
@@ -88,6 +90,13 @@ export default async function ProjectsPage({ searchParams }) {
           <div className="stat-label">Screens In Pipeline</div>
           {screens.unestimated > 0 && (
             <div className="stat-note">{screens.unestimated} not estimated</div>
+          )}
+        </div>
+        <div className="stat-tile">
+          <div className="stat-value">{formatGBPShort(value.total)}</div>
+          <div className="stat-label">Pipeline Value</div>
+          {value.unquoted > 0 && (
+            <div className="stat-note">{value.unquoted} not quoted</div>
           )}
         </div>
         {clientStats.length > 0 && (

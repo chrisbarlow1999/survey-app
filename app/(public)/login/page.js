@@ -29,7 +29,7 @@ export default function LoginPage() {
   return (
     <main>
       <div className="panel" style={{ maxWidth: 380, margin: '40px auto' }}>
-        <h2>Dashboard Sign In</h2>
+        <h2>Digital Screens Sign In</h2>
         <p className="hint">Need an account? Ask a super admin to create one for you in the Admin section.</p>
         <form onSubmit={handleSubmit}>
           <div className="field-row">

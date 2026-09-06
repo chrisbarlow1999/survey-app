@@ -7,6 +7,7 @@ import { logProjectActivity } from '../lib/logProjectActivity';
 import { formatDate, formatDateTime } from '../lib/formatDate';
 import { PROJECT_STATUSES, PROJECT_PRIORITIES, statusLabel, statusTone, priorityLabel } from '../lib/projectStatus';
 import { screenLabel } from '../lib/screenCount';
+import { formatGBP } from '../lib/money';
 
 // Planner-style editing: change a field in place, it saves, no Edit button and
 // no separate page. The full form still exists for creating a project and for
@@ -33,7 +34,7 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     // box means nobody has estimated it, which the pipeline figure reports
     // separately from a project that genuinely needs no screens.
     screen_count: project.screen_count ?? '',
-    screen_count: project.screen_count ?? '',
+    value_gbp: project.value_gbp ?? '',
     owner_id: project.owner_id || '',
     client_id: project.client_id || '',
     requested_by: project.requested_by || '',
@@ -77,6 +78,10 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
       const show = (v) => (v === '' || v == null ? 'Not estimated' : v);
       return { action: 'Screen count changed', detail: show(from) + ' → ' + show(to) };
     }
+    if (key === 'value_gbp') {
+      const show = (v) => (v === '' || v == null ? 'Not quoted' : formatGBP(v));
+      return { action: 'Value changed', detail: show(from) + ' → ' + show(to) };
+    }
     if (key === 'priority') {
       return { action: 'Priority changed', detail: `${priorityLabel(from)} → ${priorityLabel(to)}` };
     }
@@ -93,7 +98,10 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     // The number input hands back a string while the stored value is a
     // number, so the check above never matches for screens. Without this,
     // tabbing out of an untouched box writes a row and logs "6 → 6".
-    if (key === 'screen_count') {
+    // Both number inputs hand back a string while the stored value is a
+    // number, so the equality check above never matches for them. Without this,
+    // tabbing out of an untouched box writes a row and logs "6 → 6".
+    if (key === 'screen_count' || key === 'value_gbp') {
       const norm = (v) => (v === '' || v == null ? null : Number(v));
       if (norm(value) === norm(previous)) {
         setEditingKey(null);
@@ -120,6 +128,14 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
         return;
       }
     }
+    if (key === 'value_gbp' && value !== '') {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 0 || n > 10000000) {
+        setError('Value needs to be a number between 0 and 10,000,000.');
+        setEditingKey(null);
+        return;
+      }
+    }
 
     setSavingKey(key);
     setError('');
@@ -128,11 +144,11 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     // the write is refused.
     setValues((v) => ({ ...v, [key]: value }));
 
-    const nullable = ['reference', 'site_location', 'address', 'description', 'due_date', 'install_date', 'owner_id', 'requested_by', 'requester_email', 'screen_count'];
+    const nullable = ['reference', 'site_location', 'address', 'description', 'due_date', 'install_date', 'owner_id', 'requested_by', 'requester_email', 'screen_count', 'value_gbp'];
     // screen_count is an integer column, so a cleared box has to be written as
     // null. Sending '' would be rejected outright, and sending 0 would claim
     // the project needs no screens.
-    const toWrite = key === 'screen_count'
+    const toWrite = (key === 'screen_count' || key === 'value_gbp')
       ? (value === '' ? null : Number(value))
       : (nullable.includes(key) ? (value || null) : value);
     const { error: updErr } = await supabase
@@ -326,6 +342,25 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
             />
           ) : (
             <div className="v">{screenLabel(values.screen_count === '' ? null : values.screen_count)}</div>
+          )}
+        </div>
+        <div className={`kv inline-kv${savingKey === 'value_gbp' ? ' saving' : ''}`}>
+          <div className="k" title="What the job has been quoted at. Leave blank until it has been.">Value</div>
+          {canEdit ? (
+            <input
+              className="inline-select"
+              type="number"
+              min="0"
+              max="10000000"
+              step="1"
+              placeholder="Not quoted"
+              key={`value-${values.value_gbp}`}
+              defaultValue={values.value_gbp}
+              onBlur={(e) => save('value_gbp', e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+            />
+          ) : (
+            <div className="v">{formatGBP(values.value_gbp === '' ? null : values.value_gbp)}</div>
           )}
         </div>
         <div className={`kv inline-kv${savingKey === 'install_date' ? ' saving' : ''}`}>

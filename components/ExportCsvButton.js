@@ -28,7 +28,7 @@ const INSTALLATION_HEADERS = [
 
 const PROJECT_HEADERS = [
   'Title', 'Reference', 'Client', 'Status', 'Priority', 'Owner', 'Site', 'Address',
-  'Due Date', 'Install Date', 'Screens', 'Requested By', 'Source', 'Open Tasks', 'Total Tasks', 'Created',
+  'Due Date', 'Install Date', 'Screens', 'Value (GBP)', 'Requested By', 'Source', 'Open Tasks', 'Total Tasks', 'Created',
 ];
 
 const VISIT_HEADERS = [
@@ -150,6 +150,9 @@ function projectRows(projects) {
     // Blank, not 0, when unestimated — a spreadsheet summing this column
     // shouldn't count guesses that were never made.
     p.screen_count ?? '',
+    // Bare number, no currency symbol or separators — a spreadsheet has to be
+    // able to sum this column.
+    p.value_gbp ?? '',
     p.requested_by || '',
     p.source === 'intake' ? 'Client request' : 'Manual',
     p.openTasks ?? '',
@@ -196,7 +199,7 @@ const CONFIG = {
     searchColumns: ['title', 'reference', 'site_location'],
     headers: PROJECT_HEADERS,
     buildRows: projectRows,
-    select: 'id, title, reference, site_location, address, status, priority, due_date, install_date, screen_count, requested_by, source, created_at, clients(name), owner:profiles!owner_id(full_name, email)',
+    select: 'id, title, reference, site_location, address, status, priority, due_date, install_date, screen_count, value_gbp, requested_by, source, created_at, clients(name), owner:profiles!owner_id(full_name, email)',
     // Task counts live in another table, so they need a second round trip.
     // Tallied in one go rather than per project, to avoid an N+1.
     enrich: async (supabase, rows) => {

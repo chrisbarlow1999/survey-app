@@ -1152,3 +1152,21 @@ a.attachment-name:hover{text-decoration:underline;}
 .survey-count-row .site a{color:var(--text);text-decoration:none;font-weight:500;}
 .survey-count-row .site a:hover{color:var(--accent);}
 .survey-count-row .inline-select{width:auto;flex:0 0 auto;min-width:150px;}
+
+/* ---------- Sidebar search ---------- */
+.sidebar-search{margin:0 0 14px;}
+/* The base input rule carries four :not() clauses, so a plain .sidebar-search
+   input loses to it on specificity. Mirror the chain rather than !important. */
+.sidebar-search input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=submit]):not([type=button]){
+  width:100%;font-size:13px;padding:7px 10px;
+  background:var(--surface-sunken);border-color:var(--border);
+}
+.sidebar-search input::-webkit-search-cancel-button{filter:grayscale(1);opacity:0.5;}
+
+/* "See all matches" beside a results heading — a link, not a button, because
+   it navigates. */
+.search-all{
+  margin-left:auto;font-size:12px;font-weight:400;
+  color:var(--accent);text-decoration:none;
+}
+.search-all:hover{text-decoration:underline;}
