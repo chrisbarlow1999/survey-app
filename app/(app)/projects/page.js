@@ -5,6 +5,7 @@ import { formatDate } from '../../../lib/formatDate';
 import { applyArchiveFilter } from '../../../components/ArchiveFilter';
 import { statusLabel, statusTone, isClosed } from '../../../lib/projectStatus';
 import { ProjectFilters } from '../../../components/ProjectFilters';
+import { projectHref } from '../../../lib/projectBackLink';
 import { ProjectViewTabs } from '../../../components/ProjectViewTabs';
 import { ExportCsvButton } from '../../../components/ExportCsvButton';
 import { screenTotals, screenLabel } from '../../../lib/screenCount';
@@ -119,7 +120,7 @@ export default async function ProjectsPage({ searchParams }) {
           </div>
         )}
         {projects && projects.map((p) => (
-          <a className="sub-row" key={p.id} href={`/projects/${p.id}`}>
+          <a className="sub-row" key={p.id} href={projectHref(p.id, '/projects', params)}>
             <div>
               <div className="site">
                 {p.title}

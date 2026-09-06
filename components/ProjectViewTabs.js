@@ -15,6 +15,8 @@ export function ProjectViewTabs({ current, params }) {
       <a className={current === 'list' ? 'on' : ''} href={`/projects${suffix}`}>List</a>
       <a className={current === 'table' ? 'on' : ''} href={`/projects/table${suffix}`}>Table</a>
       <a className={current === 'board' ? 'on' : ''} href={`/projects/board${suffix}`}>Board</a>
+      <a className={current === 'schedule' ? 'on' : ''} href={`/projects/schedule${suffix}`}>Schedule</a>
+      <a className={current === 'screens' ? 'on' : ''} href={`/projects/screens${suffix}`}>Screens</a>
     </div>
   );
 }

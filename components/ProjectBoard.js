@@ -7,6 +7,7 @@ import { logProjectActivity } from '../lib/logProjectActivity';
 import { formatDate } from '../lib/formatDate';
 import { PROJECT_STATUSES, statusLabel } from '../lib/projectStatus';
 import { screenTotals } from '../lib/screenCount';
+import { projectHref } from '../lib/projectBackLink';
 
 // Kanban board, one column per status. Drag a card to a new column to move the
 // project — the same thing as changing its status on the detail page, and it
@@ -16,7 +17,7 @@ import { screenTotals } from '../lib/screenCount';
 // Cards keep their column's order from the server (due date, then newest); there's
 // no manual ordering within a column. Planner has that, but it's the part of a
 // board people fiddle with rather than use.
-export function ProjectBoard({ projects, actorName, canEdit }) {
+export function ProjectBoard({ projects, actorName, canEdit, params }) {
   const supabase = createClient();
   const router = useRouter();
   const [dragId, setDragId] = useState(null);
@@ -86,7 +87,9 @@ export function ProjectBoard({ projects, actorName, canEdit }) {
           {p.clients?.name && <span className="client-badge">{p.clients.name}</span>}
           {p.source === 'intake' && <span className="client-badge intake-badge">Request</span>}
         </div>
-        <a className="board-card-title" href={`/projects/${p.id}`}>{p.title}</a>
+        {/* Carries the board and its filters, so the project's back link
+            returns here rather than dumping you on the list. */}
+        <a className="board-card-title" href={projectHref(p.id, '/projects/board', params)}>{p.title}</a>
         {p.site_location && <div className="board-card-site">{p.site_location}</div>}
         <div className="board-card-foot">
           {total > 0 && (

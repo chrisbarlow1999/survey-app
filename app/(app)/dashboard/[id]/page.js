@@ -114,6 +114,7 @@ export default async function ReportPage({ params }) {
           <div className="kv"><div className="k">Survey Date</div><div className="v">{formatDate(survey.survey_date)}</div></div>
           <div className="kv"><div className="k">Site Contact</div><div className="v">{survey.site_contact || '—'}</div></div>
           <div className="kv"><div className="k">Address</div><div className="v">{survey.address || '—'}</div></div>
+          <div className="kv"><div className="k">Screen Areas</div><div className="v">{locationsWithUrls.length}</div></div>
           <div className="kv internal-only"><div className="k">Engineer Days (est.)</div><div className="v">{survey.engineer_days || '—'}</div></div>
           <div className="kv internal-only"><div className="k">Engineers Required</div><div className="v">{survey.engineer_count || '—'}</div></div>
         </div>
@@ -164,7 +165,7 @@ export default async function ReportPage({ params }) {
 
       <SurveyApprovalPanel survey={survey} canEdit={canEdit} />
 
-      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '20px 0 10px' }}>
+      <h2 className="section-heading" style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '20px 0 10px' }}>
         Screen Areas ({locationsWithUrls.length})
       </h2>
       {locationsWithUrls.map((area, i) => {

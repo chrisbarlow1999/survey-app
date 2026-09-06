@@ -155,7 +155,7 @@ export default async function VisitReportPage({ params }) {
         )}
       </div>
 
-      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '20px 0 10px' }}>
+      <h2 className="section-heading" style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '20px 0 10px' }}>
         Issues ({issuesWithUrls.length})
       </h2>
       {issuesWithUrls.map((issue, i) => (

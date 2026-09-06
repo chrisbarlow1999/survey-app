@@ -6,11 +6,17 @@ import { formatDate, formatDateTime } from '../../../../lib/formatDate';
 import { ProjectDetailsPanel } from '../../../../components/ProjectDetailsPanel';
 import { ProjectNotes } from '../../../../components/ProjectNotes';
 import { ProjectAttachments } from '../../../../components/ProjectAttachments';
+import { parseReturnHref, backLabel } from '../../../../lib/projectBackLink';
+import { surveyInclusion, screenCountOf } from '../../../../lib/surveyScreens';
+import { SurveyCountPanel } from '../../../../components/SurveyCountPanel';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ProjectPage({ params }) {
+export default async function ProjectPage({ params, searchParams }) {
   const { id } = await params;
+  // Where to go back to. Rebuilt from an allowlist rather than followed as
+  // given — see lib/projectBackLink.js.
+  const backHref = parseReturnHref((await searchParams)?.back);
   const supabase = await createClient();
 
   const { data: project, error } = await supabase
@@ -22,6 +28,7 @@ export default async function ProjectPage({ params }) {
   if (error || !project) {
     return (
       <main>
+        <a className="back-link" href={backHref}>&larr; {backLabel(backHref)}</a>
         <div className="empty-state">Project not found, or you don't have access to view it.</div>
       </main>
     );
@@ -35,9 +42,9 @@ export default async function ProjectPage({ params }) {
   const [
     { data: tasks },
     { data: activity },
-    { data: surveys },
-    { data: installations },
-    { data: visits },
+    { data: surveys, error: surveysError },
+    { data: installations, error: installsError },
+    { data: visits, error: visitsError },
     { data: notes },
     { data: clients },
     { data: owners },
@@ -56,7 +63,7 @@ export default async function ProjectPage({ params }) {
     // locations comes along so the project can show what was actually
     // surveyed next to the PM's forecast — the two drifting apart is the
     // thing worth noticing.
-    supabase.from('surveys').select('id, site_location, survey_date, locations').eq('project_id', id).is('archived_at', null),
+    supabase.from('surveys').select('id, project_id, site_location, survey_date, submitted_at, counts_in_totals, locations').eq('project_id', id).is('archived_at', null),
     supabase.from('installations').select('id, site_location, install_date').eq('project_id', id).is('archived_at', null),
     supabase.from('visits').select('id, site_location, visit_date').eq('project_id', id).is('archived_at', null),
     supabase.from('project_notes').select('*').eq('project_id', id).order('created_at', { ascending: true }),
@@ -71,10 +78,17 @@ export default async function ProjectPage({ params }) {
     })
   );
 
-  const surveyedScreens = (surveys || []).reduce(
-    (n, s) => n + (s.locations || []).reduce((m, a) => m + ((a.screens || []).length || 0), 0),
-    0
-  );
+  // The same decision /projects/screens makes, from the same function. If the
+  // two disagreed, a project would report one figure on its own page and a
+  // different one in the pipeline view.
+  const inclusion = surveyInclusion(surveys || []);
+  const surveyedScreens = inclusion.kept.reduce((n, s) => n + screenCountOf(s), 0);
+
+  // A sub-query that fails here returns { data: null } without throwing, so
+  // Site Records would render "Nothing linked to this project yet" — the same
+  // thing it shows when the link genuinely hasn't been made. That sends you
+  // looking at the wrong problem. Say it failed instead.
+  const linkedError = surveysError || installsError || visitsError;
 
   const linked = [
     ...(surveys || []).map((r) => ({ ...r, kind: 'Survey', href: `/dashboard/${r.id}`, date: r.survey_date })),
@@ -84,7 +98,7 @@ export default async function ProjectPage({ params }) {
 
   return (
     <main className="project-main">
-      <a className="back-link" href="/projects">&larr; Back to Projects</a>
+      <a className="back-link" href={backHref}>&larr; {backLabel(backHref)}</a>
       <div className="toolbar">
         {canEdit && <ArchiveButton table="projects" recordId={project.id} archived={Boolean(project.archived_at)} />}
         {canEdit && (
@@ -115,6 +129,15 @@ export default async function ProjectPage({ params }) {
         surveyedScreens={surveyedScreens}
       />
 
+      {(surveys || []).length > 0 && (
+        <SurveyCountPanel
+          projectId={project.id}
+          entries={inclusion.entries}
+          actorName={actorName}
+          readOnly={!canEdit}
+        />
+      )}
+
       <ProjectAttachments
         projectId={project.id}
         attachments={attachments}
@@ -136,7 +159,15 @@ export default async function ProjectPage({ params }) {
           Surveys, installs and visits linked to this project. Link them from the record's own page —
           engineers submitting the public forms have no way to know which project a job belongs to.
         </p>
-        {linked.length === 0 && <div className="empty-state">Nothing linked to this project yet.</div>}
+        {linkedError && (
+          <p className="error-text">
+            Could not load linked records: {linkedError.message}. This section is empty because the
+            query failed, not because nothing is linked.
+          </p>
+        )}
+        {!linkedError && linked.length === 0 && (
+          <div className="empty-state">Nothing linked to this project yet.</div>
+        )}
         {linked.map((r) => (
           <a className="sub-row" key={`${r.kind}-${r.id}`} href={r.href}>
             <div>

@@ -163,7 +163,7 @@ export default async function InstallationReportPage({ params }) {
         )}
       </div>
 
-      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '20px 0 10px' }}>
+      <h2 className="section-heading" style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '20px 0 10px' }}>
         Installed Screens ({areasWithUrls.length} area{areasWithUrls.length !== 1 ? 's' : ''})
       </h2>
       {areasWithUrls.map((area, i) => (

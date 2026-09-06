@@ -33,6 +33,19 @@ gated dashboard and report.
   Create one manually, or let it arrive through a client request link.
 - `/projects/board` — the same projects as a kanban board, one column per status.
   Drag a card to move it.
+- `/projects/table` — the same projects as a sortable spreadsheet: screens,
+  stage, install date, tasks. Click a heading to sort; tick rows to change
+  stage, owner or install date on several at once.
+- `/projects/schedule` — booked installs a quarter at a time, week by week,
+  with screens and engineer-days per week. Engineer-days come from the linked
+  surveys (days × engineers), so a project with no survey shows no resourcing.
+- `/projects/screens` — what the pipeline needs by Samsung model. Built from
+  surveys, not from the forecast screen count, because a size only exists once
+  an engineer has been on site. Only the **latest** survey for each site counts:
+  a re-survey replaces what came before it rather than adding to it, keyed on
+  project + site so a rollout with a survey per venue keeps all of them. Where
+  that's wrong — a site surveyed in phases rather than re-surveyed — the
+  project page's *Surveyed screens* panel lets a PM overrule it per survey.
 - `/home` — the landing page: what needs you today, plus headline figures.
 - `/approve/<token>` — a client-facing approval page for one survey. No account
   needed; the client approves or asks for changes and it lands back on the report.
@@ -201,6 +214,11 @@ hand-synced copies.
     projects: when engineers are booked, as distinct from `due_date`, which is
     the client's requested deadline. Also stops an anonymous request setting
     its own install date.
+38. Also run `supabase/031_survey_counts_in_totals.sql` — adds
+    `surveys.counts_in_totals`, a three-state override (null = use the
+    latest-survey-per-site rule, true = always count, false = never count) so a
+    PM can say whether two surveys of one site are a re-survey or a site done
+    in phases. Also stops the public form setting it.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens

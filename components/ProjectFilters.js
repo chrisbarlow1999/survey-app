@@ -10,7 +10,9 @@ import { PROJECT_SORT_OPTIONS, resolveProjectSort } from '../lib/listQuery';
 // place on whichever view is showing it. `page` is deliberately not carried:
 // changing a filter should land you on page 1, not on page 4 of a different
 // result set.
-export function ProjectFilters({ params, clients, owners, basePath }) {
+// showSort is off for the views that impose their own order — a Sort dropdown
+// on a calendar would be a control that does nothing.
+export function ProjectFilters({ params, clients, owners, basePath, showSort = true }) {
   const q = (params?.q || '').trim();
   const clientId = params?.client || '';
   const status = params?.status || '';
@@ -40,9 +42,11 @@ export function ProjectFilters({ params, clients, owners, basePath }) {
             <option key={o.id} value={o.id}>{o.full_name || o.email}</option>
           ))}
         </select>
-        <select name="sort" defaultValue={sort.value} title="Sort by">
-          {PROJECT_SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        {showSort && (
+          <select name="sort" defaultValue={sort.value} title="Sort by">
+            {PROJECT_SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        )}
         <ArchiveFilter value={archived} />
         <button className="btn btn-primary" type="submit">Filter</button>
         {hasFilters && <a className="btn btn-ghost" href={basePath}>Clear</a>}

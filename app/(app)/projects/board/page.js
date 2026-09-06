@@ -102,7 +102,7 @@ export default async function ProjectBoardPage({ searchParams }) {
         </div>
       )}
 
-      <ProjectBoard projects={cards} actorName={actorName} canEdit={canEdit} />
+      <ProjectBoard projects={cards} actorName={actorName} canEdit={canEdit} params={params} />
     </main>
   );
 }

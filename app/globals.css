@@ -959,6 +959,51 @@ a.attachment-name:hover{text-decoration:underline;}
      name and phone, internal free-text notes). Set by ClientPrintButton just
      for the duration of the print dialog. */
   html.client-print .internal-only{display:none !important;}
+
+  /* ---- Paper layout ----
+     Everything below fixes an export that had gone wrong since the redesign.
+
+     The grids are the root of it. .kv-grid uses repeat(auto-fit,minmax(190px,
+     1fr)), which lays out fine on screen but collapsed to a single column
+     inside the paginated print flow — Chrome resolves an auto-fit track list
+     against an available width it hasn't settled yet. Every label/value pair
+     ended up on its own row, so one area with three screens ran to several
+     pages of mostly white. Fixed column counts don't depend on that
+     resolution, so they lay out the same on paper as on screen. */
+  @page{margin:14mm;}
+
+  .kv-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:7px 18px !important;margin-bottom:8px !important;}
+  /* The cover summary spans the full page, so it takes a third column. */
+  .report-summary .kv-grid{grid-template-columns:repeat(3,minmax(0,1fr)) !important;}
+  /* The scale drawing keeps its column, just a narrower one. */
+  .loc-body{grid-template-columns:minmax(0,1fr) 150px !important;gap:16px !important;}
+
+  /* Tightened for paper: the on-screen rhythm is generous because a monitor
+     scrolls, and a page doesn't. */
+  .kv{padding-left:10px;}
+  .kv .k{font-size:10.5px;}
+  .kv .v{font-size:12px;margin-top:2px;}
+  .report-loc{padding:14px !important;}
+  .report-screens{margin-top:8px;}
+  .report-screen{padding-left:11px;margin-bottom:8px;}
+  .report-screen-num{font-size:11.5px;margin-bottom:5px;}
+
+  /* The marked-up photo is the evidence the client is signing off, so give it
+     the room the reclaimed space just freed. */
+  .report-loc .overlay-container{max-width:380px;}
+  /* The base rule caps the image at 220px tall for the screen, which on a
+     portrait photo leaves it 166px wide — a thumbnail of the thing the client
+     is actually signing off. Raise the cap so a portrait fills a sensible
+     width and a landscape one hits the 380px limit instead. */
+  .report-loc .overlay-container img{max-height:285px;}
+  .additional-photos-grid{break-inside:avoid;page-break-inside:avoid;}
+  .additional-photo-thumb img{max-height:150px;}
+
+  /* Each of these headings sits directly above a block that always starts a
+     new page, so on paper it was stranded at the foot of the cover sheet with
+     half a page of white beneath it. Every page it introduced already names
+     itself, and the count now lives in the cover summary. */
+  .section-heading{display:none !important;}
 }
 
 /* Theme switch in the sidebar footer. The icon needs an explicit size and
@@ -1040,3 +1085,70 @@ a.attachment-name:hover{text-decoration:underline;}
 .table-muted{color:var(--text-tertiary);}
 .table-late{color:var(--danger);font-weight:500;}
 .table-done{color:var(--success);}
+
+/* ---------- Bulk actions on the table ---------- */
+.bulk-bar{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:var(--accent-soft);border:1px solid var(--accent);
+  border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;
+}
+.bulk-count{font-size:13px;font-weight:600;color:var(--accent);}
+.bulk-bar .inline-select{width:auto;flex:0 0 auto;min-width:150px;}
+.bulk-bar .btn{flex:0 0 auto;}
+/* The base input rule carries four :not() clauses, so it outweighs a plain
+   .bulk-bar .inline-select and the date box goes back to full width. Mirror
+   that chain to win on specificity rather than reaching for !important. */
+.bulk-bar input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=submit]):not([type=button]){
+  width:auto;flex:0 0 auto;min-width:150px;
+}
+.data-table th.tick,.data-table td.tick{width:34px;padding-right:0;}
+.data-table tr.picked{background:var(--accent-soft);}
+.data-table tr.picked:hover{background:var(--accent-soft);}
+
+/* ---------- Install schedule ---------- */
+.schedule-nav{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding-bottom:10px;margin-bottom:6px;border-bottom:1px solid var(--border);
+}
+.schedule-range{font-size:13px;font-weight:500;color:var(--text-secondary);text-align:center;}
+.schedule-today{display:block;font-size:11.5px;color:var(--accent);text-decoration:none;margin-top:2px;}
+.schedule-week{border-top:1px solid var(--border);padding-top:4px;}
+.schedule-week:first-of-type{border-top:none;}
+.schedule-week-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;padding:10px 0 4px;
+}
+.schedule-week-label{font-size:12.5px;font-weight:600;color:var(--text);}
+.schedule-week-totals{font-size:11.5px;color:var(--text-tertiary);}
+.schedule-empty{font-size:12px;color:var(--text-tertiary);padding:0 0 10px;}
+/* The current week gets a rule down its left edge so the eye finds "now"
+   without having to read twelve dates. */
+.schedule-week.current{
+  border-left:2px solid var(--accent);margin-left:-12px;padding-left:10px;
+}
+.schedule-now{
+  margin-left:8px;font-size:10.5px;font-weight:500;text-transform:uppercase;
+  letter-spacing:0.04em;color:var(--accent);
+}
+.schedule-screens{display:block;font-size:11.5px;color:var(--text-tertiary);margin-top:3px;}
+
+/* ---------- Screen mix ---------- */
+.mix-bar{
+  display:inline-block;vertical-align:middle;width:120px;height:6px;
+  background:var(--surface-hover);border-radius:3px;overflow:hidden;margin-right:8px;
+}
+.mix-bar-fill{display:block;height:100%;background:var(--accent);}
+.mix-share{font-size:11.5px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;}
+
+/* ---------- Which surveys count toward screen totals ---------- */
+.survey-count-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 0;border-bottom:1px solid var(--border);
+}
+.survey-count-row:last-child{border-bottom:none;}
+/* A survey that isn't counted is still shown — the point is that the decision
+   is visible — but it shouldn't read as part of the total. */
+.survey-count-row.muted .site,.survey-count-row.muted .meta{opacity:0.55;}
+.survey-count-row .site a{color:var(--text);text-decoration:none;font-weight:500;}
+.survey-count-row .site a:hover{color:var(--accent);}
+.survey-count-row .inline-select{width:auto;flex:0 0 auto;min-width:150px;}
