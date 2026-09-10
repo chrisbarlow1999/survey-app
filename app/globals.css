@@ -1183,3 +1183,31 @@ a.attachment-name:hover{text-decoration:underline;}
 .board-reorder button:disabled{opacity:0.3;cursor:default;}
 /* The card itself is draggable, so a press on these must not start a drag. */
 .board-reorder button{-webkit-user-drag:none;}
+
+/* ---------- Client approval: choose, then confirm ---------- */
+/* Two equal cards rather than a primary and a ghost button: neither answer is
+   the default, and styling one as the obvious "submit" is how a change request
+   once got recorded as an approval. */
+.decision-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:4px;}
+.decision-card{
+  display:flex;flex-direction:column;gap:5px;text-align:left;
+  padding:16px 18px;border:1px solid var(--border-strong);border-radius:var(--radius);
+  background:var(--surface);color:var(--text);font:inherit;cursor:pointer;
+  transition:border-color .12s,background .12s;
+}
+.decision-card:hover{border-color:var(--accent);background:var(--accent-soft);}
+.decision-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.decision-title{font-family:var(--font-display);font-weight:600;font-size:15px;}
+.decision-desc{font-size:13px;color:var(--text-secondary);line-height:1.45;}
+
+.decision-summary{
+  display:flex;flex-direction:column;gap:6px;font-size:14px;
+  border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:var(--radius-sm);padding:12px 14px;margin:4px 0 14px;
+}
+.decision-summary-title{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary);}
+.decision-summary-flag{
+  font-size:13px;color:var(--caution);background:var(--caution-soft);
+  border:1px solid var(--caution-line);border-radius:var(--radius-sm);padding:8px 10px;
+}
+@media (prefers-reduced-motion: reduce){.decision-card{transition:none;}}

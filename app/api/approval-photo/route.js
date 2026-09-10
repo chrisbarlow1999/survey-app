@@ -48,6 +48,12 @@ export async function GET(request) {
     if (area.photo_path) allowed.add(area.photo_path);
     (area.additional_photos || []).forEach((p) => allowed.add(p));
   });
+  // Attachments too, now the approval page lists them (migration 034). Same
+  // rule as the photos: only files this survey actually references. Before 034
+  // runs the function doesn't return attachments, so this adds nothing.
+  (survey.attachments || []).forEach((a) => {
+    if (a && a.path) allowed.add(a.path);
+  });
   if (!allowed.has(path)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

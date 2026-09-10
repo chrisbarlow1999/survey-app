@@ -58,6 +58,12 @@ survey, and the report a client receives still says so.
 - `/home` — the landing page: what needs you today, plus headline figures.
 - `/approve/<token>` — a client-facing approval page for one survey. No account
   needed; the client approves or asks for changes and it lands back on the report.
+  It shows what the Client PDF shows — every screen's power and data/4G, the
+  photo, the scale drawing — and never the engineer's details. The client picks
+  Approve or Request changes *first*, as its own step: approving then shows a
+  summary to confirm (flagging any screen with no power or data), and the
+  comment box only exists on the change-request path, so change text can never
+  be sent as an approval.
 - `/request/<slug>` — a client's own public request form. No account needed. Creates
   a project against that client with status "New Request". Links are listed, shared
   and switched on under Admin → Request Links.
@@ -237,6 +243,13 @@ hand-synced copies.
     column. Null everywhere by default, which keeps the existing due-date
     order; the first manual move in a column writes a position for every card
     in it, so a column is either fully automatic or fully manual.
+41. Also run `supabase/034_approval_full_details.sql` — redefines
+    `get_survey_for_approval()` so the client approval page gets the same
+    details as the Client PDF: adds site contact and attachments, and stops
+    sending the engineer's name to anyone holding a link. Per-screen power,
+    data/4G and notes needed no migration — they were already in `locations`,
+    the page just never drew them. The page works before this runs too; it
+    just shows no site contact or attachments until it does.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
