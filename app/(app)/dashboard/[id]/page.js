@@ -10,6 +10,9 @@ import { formatBytes } from '../../../../lib/formatBytes';
 import { formatDate, formatDateTime } from '../../../../lib/formatDate';
 import { ProjectLinkPicker } from '../../../../components/ProjectLinkPicker';
 import { SurveyApprovalPanel } from '../../../../components/SurveyApprovalPanel';
+import { CreateCostSheetButton } from '../../../../components/CreateCostSheetButton';
+import { costSheetLabel, costSheetTone } from '../../../../lib/costSheetStatus';
+import { formatGBP } from '../../../../lib/money';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +70,14 @@ export default async function ReportPage({ params }) {
     })
   );
 
+  // Quotes built from this survey. Archived ones still show here so a
+  // withdrawn quote doesn't look like it never existed.
+  const { data: costSheets } = await supabase
+    .from('cost_sheets')
+    .select('id, reference, title, total_price, approval_status, created_at, archived_at')
+    .eq('survey_id', id)
+    .order('created_at', { ascending: false });
+
   const attachments = await Promise.all(
     (survey.attachments || []).map(async (a) => {
       const { data } = await supabase.storage.from('survey-photos').createSignedUrl(a.path, 60 * 60);
@@ -111,6 +122,7 @@ export default async function ReportPage({ params }) {
         <div className="kv-grid" style={{ marginTop: 12 }}>
           <div className="kv internal-only"><div className="k">Engineer</div><div className="v">{survey.engineer_first} {survey.engineer_last}</div></div>
           <div className="kv internal-only"><div className="k">Phone</div><div className="v">{survey.phone}</div></div>
+          <div className="kv internal-only"><div className="k">Engineering Company</div><div className="v">{survey.engineer_company || '—'}</div></div>
           <div className="kv"><div className="k">Survey Date</div><div className="v">{formatDate(survey.survey_date)}</div></div>
           <div className="kv"><div className="k">Site Contact</div><div className="v">{survey.site_contact || '—'}</div></div>
           <div className="kv"><div className="k">Address</div><div className="v">{survey.address || '—'}</div></div>
@@ -164,6 +176,44 @@ export default async function ReportPage({ params }) {
       </div>
 
       <SurveyApprovalPanel survey={survey} canEdit={canEdit} />
+
+      <div className="panel no-print">
+        <h2>
+          Cost sheets
+          {(costSheets || []).length > 0 && <span className="panel-count">{costSheets.length}</span>}
+        </h2>
+        <p className="hint">
+          Quotes built from this survey: the areas and screens above come across as priced lines,
+          and you adjust them. Cost and margin stay internal — the client only ever sees the price.
+        </p>
+        {(!costSheets || costSheets.length === 0) && (
+          <div className="empty-state">No cost sheet yet.</div>
+        )}
+        {(costSheets || []).map((cs) => (
+          <a className="sub-row" key={cs.id} href={`/cost-sheets/${cs.id}`}>
+            <div>
+              <div className="site">
+                {cs.title || 'Cost sheet'}
+                {cs.archived_at ? <span className="client-badge archived-badge">Archived</span> : null}
+              </div>
+              <div className="meta">
+                {cs.reference ? `${cs.reference} · ` : ''}Raised {formatDate(cs.created_at)}
+              </div>
+            </div>
+            <div className="count">
+              <span className={`status-pill status-${costSheetTone(cs.approval_status)}`}>
+                {costSheetLabel(cs.approval_status)}
+              </span>
+              <span className="schedule-screens">{formatGBP(cs.total_price)}</span>
+            </div>
+          </a>
+        ))}
+        {canEdit && (
+          <div className="toolbar" style={{ marginTop: 10, marginBottom: 0 }}>
+            <CreateCostSheetButton survey={survey} userId={user.id} />
+          </div>
+        )}
+      </div>
 
       <h2 className="section-heading" style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '20px 0 10px' }}>
         Screen Areas ({locationsWithUrls.length})

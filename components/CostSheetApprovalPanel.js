@@ -4,25 +4,16 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
 import { formatDateTime } from '../lib/formatDate';
+import { costSheetLabel, costSheetTone } from '../lib/costSheetStatus';
+import { sheetTotals } from '../lib/costSheet';
 
-const LABEL = {
-  not_sent: 'Not sent',
-  awaiting: 'Awaiting client',
-  approved: 'Approved',
-  changes_requested: 'Changes requested',
-};
-const TONE = {
-  not_sent: 'open',
-  awaiting: 'active',
-  approved: 'done',
-  changes_requested: 'warn',
-};
-
-// PM side of the client approval loop. Sending doesn't email anything — it
-// opens the link and marks the survey as awaiting, so you paste the URL into
-// whatever you already use. Once email is unblocked this is where sending
-// would hook in.
-export function SurveyApprovalPanel({ survey, canEdit }) {
+// The PM side of getting a quote agreed. Deliberately the same shape as
+// SurveyApprovalPanel — send, copy, preview, withdraw, reopen — because it is
+// the same job, and a second pattern for it would be a second thing to learn.
+//
+// Sending doesn't email anything. It opens the link and marks the sheet as
+// awaiting; you send the URL however you normally would.
+export function CostSheetApprovalPanel({ sheet, canEdit }) {
   const supabase = createClient();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -33,9 +24,13 @@ export function SurveyApprovalPanel({ survey, canEdit }) {
   // client markup disagree and React throws the subtree away.
   const [origin, setOrigin] = useState('');
   useEffect(() => setOrigin(window.location.origin), []);
-  const link = `${origin}/approve/${survey.approval_token}`;
+  const link = `${origin}/quote/${sheet.approval_token}`;
 
-  const status = survey.approval_status || 'not_sent';
+  const status = sheet.approval_status || 'not_sent';
+  const totals = sheetTotals(sheet.items || []);
+  // A line with no price would show the client a total that silently omits it.
+  // Better to refuse to send than to send something wrong.
+  const blocked = totals.unpriced > 0 || (sheet.items || []).length === 0;
 
   async function setStatus(next) {
     setBusy(true);
@@ -43,17 +38,16 @@ export function SurveyApprovalPanel({ survey, canEdit }) {
     const patch = { approval_status: next };
     if (next === 'awaiting') patch.approval_sent_at = new Date().toISOString();
     const { data, error: updErr } = await supabase
-      .from('surveys').update(patch).eq('id', survey.id).select('id, approval_status');
+      .from('cost_sheets').update(patch).eq('id', sheet.id).select('id, approval_status');
     setBusy(false);
     if (updErr) {
       console.error(updErr);
       setError('Could not update the approval status.');
       return;
     }
-    // A Supabase update that matches no rows returns no error — it just does
-    // nothing. Without this the button would look like it worked.
+    // An update that matches no rows returns no error — it just does nothing.
     if (!data || data.length === 0) {
-      setError('That change was refused — you may not have edit access to this survey.');
+      setError('That change was refused — you may not have edit access to this sheet.');
       return;
     }
     router.refresh();
@@ -73,20 +67,28 @@ export function SurveyApprovalPanel({ survey, canEdit }) {
     <div className="panel no-print">
       <h2>
         Client Approval
-        <span className={`status-pill status-${TONE[status]}`} style={{ marginLeft: 10, verticalAlign: 'middle' }}>
-          {LABEL[status]}
+        <span className={`status-pill status-${costSheetTone(status)}`} style={{ marginLeft: 10, verticalAlign: 'middle' }}>
+          {costSheetLabel(status)}
         </span>
       </h2>
 
       {status === 'not_sent' && (
         <>
           <p className="hint">
-            Open the link and the client can approve this survey or ask for changes, without an
-            account. Nothing is emailed automatically — send the link however you normally would.
+            Open the link and the client can approve this quote or ask for changes, without an
+            account. They see the lines and the price — never your cost or margin. Nothing is
+            emailed automatically.
           </p>
+          {blocked && (
+            <p className="error-text">
+              {(sheet.items || []).length === 0
+                ? 'Add at least one line before sending this sheet.'
+                : `${totals.unpriced} line${totals.unpriced === 1 ? '' : 's'} still have no price. The client would see a total that leaves them out.`}
+            </p>
+          )}
           {canEdit && (
-            <button className="btn btn-primary" type="button" disabled={busy} onClick={() => setStatus('awaiting')}>
-              {busy ? 'Opening…' : 'Open for client approval'}
+            <button className="btn btn-primary" type="button" disabled={busy || blocked} onClick={() => setStatus('awaiting')}>
+              {busy ? 'Opening…' : 'Send for client approval'}
             </button>
           )}
         </>
@@ -96,19 +98,19 @@ export function SurveyApprovalPanel({ survey, canEdit }) {
         <>
           <p className="hint">
             {status === 'awaiting'
-              ? 'Send this link to the client. It shows the client-facing version of this survey only.'
+              ? 'Send this link to the client. While it is open the sheet is locked, so the document they are reading cannot change underneath them.'
               : 'The link stays live so the client can see what they responded to.'}
           </p>
           <div className="intake-link">{link}</div>
           <div className="toolbar" style={{ marginTop: 12, marginBottom: 0 }}>
             <button className="btn btn-ghost" type="button" onClick={copy}>{copied ? 'Copied' : 'Copy Link'}</button>
-            <a className="btn btn-ghost" href={`/approve/${survey.approval_token}`} target="_blank" rel="noreferrer">Preview</a>
+            <a className="btn btn-ghost" href={`/quote/${sheet.approval_token}`} target="_blank" rel="noreferrer">Preview</a>
             {canEdit && (status === 'approved' || status === 'changes_requested') && (
               <button className="btn btn-ghost" type="button" disabled={busy} onClick={() => setStatus('awaiting')}>
                 Reopen for approval
               </button>
             )}
-            {canEdit && status !== 'not_sent' && (
+            {canEdit && (
               <button
                 className="btn btn-danger"
                 type="button"
@@ -126,11 +128,11 @@ export function SurveyApprovalPanel({ survey, canEdit }) {
         </>
       )}
 
-      {status === 'awaiting' && survey.approval_decided_at && (
+      {status === 'awaiting' && sheet.approval_decided_at && (
         <p className="hint" style={{ marginTop: 12 }}>
           Waiting on a new response. A previous response is on record from
-          {survey.approval_name ? ` ${survey.approval_name}` : ' the client'} on {formatDateTime(survey.approval_decided_at)}.
-          {survey.approval_comment ? ` They said: “${survey.approval_comment}”` : ''}
+          {sheet.approval_name ? ` ${sheet.approval_name}` : ' the client'} on {formatDateTime(sheet.approval_decided_at)}.
+          {sheet.approval_comment ? ` They said: “${sheet.approval_comment}”` : ''}
         </p>
       )}
 
@@ -138,10 +140,10 @@ export function SurveyApprovalPanel({ survey, canEdit }) {
         <div className="kv" style={{ marginTop: 16, borderColor: status === 'approved' ? 'var(--ok)' : 'var(--warn)' }}>
           <div className="k">
             {status === 'approved' ? 'Approved by' : 'Changes requested by'}
-            {survey.approval_decided_at ? ` · ${formatDateTime(survey.approval_decided_at)}` : ''}
+            {sheet.approval_decided_at ? ` · ${formatDateTime(sheet.approval_decided_at)}` : ''}
           </div>
-          <div className="v">{survey.approval_name || 'Unknown'}</div>
-          {survey.approval_comment && <div className="v" style={{ marginTop: 6 }}>{survey.approval_comment}</div>}
+          <div className="v">{sheet.approval_name || 'Unknown'}</div>
+          {sheet.approval_comment && <div className="v" style={{ marginTop: 6 }}>{sheet.approval_comment}</div>}
         </div>
       )}
 

@@ -11,6 +11,12 @@ const QUIET_DAYS = 14;
 // No panel here is a full list — each one is a prompt to go and look.
 const PANEL_LIMIT = 8;
 
+// Whole days since a timestamp, for "waiting 6 days".
+function daysSince(iso) {
+  if (!iso) return null;
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+}
+
 function daysAgo(n) {
   return new Date(Date.now() - n * 86400000).toISOString();
 }
@@ -37,6 +43,8 @@ export default async function HomePage() {
     { data: myTasks },
     { data: unassigned },
     { data: quiet },
+    { data: approvals },
+    { data: sheetApprovals },
     { data: recentSurveys },
     { data: recentInstalls },
     { data: recentVisits },
@@ -66,6 +74,26 @@ export default async function HomePage() {
       .is('archived_at', null).not('status', 'in', closed)
       .lt('last_activity_at', daysAgo(QUIET_DAYS))
       .order('last_activity_at', { ascending: true }).limit(PANEL_LIMIT),
+    // Surveys out with a client: still waiting, or come back wanting changes.
+    // Nothing else in the app tells you a client has responded — email is not
+    // wired up — so without this a change request can sit unseen indefinitely.
+    isClientViewer ? none : supabase
+      .from('surveys')
+      .select('id, site_location, approval_status, approval_sent_at, approval_decided_at, approval_name, clients(name)')
+      .is('archived_at', null)
+      .in('approval_status', ['awaiting', 'changes_requested'])
+      .order('approval_sent_at', { ascending: true, nullsFirst: true })
+      .limit(PANEL_LIMIT),
+    // Quotes sit in the same panel as surveys: from a chasing point of view
+    // they are the same job — something is out with a client and hasn't come
+    // back. RLS keeps cost sheets away from client_viewer accounts entirely.
+    isClientViewer ? none : supabase
+      .from('cost_sheets')
+      .select('id, title, total_price, approval_status, approval_sent_at, approval_decided_at, approval_name, clients(name), surveys(site_location)')
+      .is('archived_at', null)
+      .in('approval_status', ['awaiting', 'changes_requested'])
+      .order('approval_sent_at', { ascending: true, nullsFirst: true })
+      .limit(PANEL_LIMIT),
     supabase.from('surveys').select('id, site_location, submitted_at, clients(name)')
       .is('archived_at', null).order('submitted_at', { ascending: false }).limit(5),
     supabase.from('installations').select('id, site_location, submitted_at, clients(name)')
@@ -109,6 +137,22 @@ export default async function HomePage() {
     .slice(0, 8);
 
   const thisMonth = (surveysThisMonth || 0) + (installsThisMonth || 0) + (visitsThisMonth || 0);
+
+  // Changes requested first — that one needs a person to do something. Then
+  // longest-waiting, because those are the ones to chase.
+  const approvalRows = [
+    ...(approvals || []).map((r) => ({ ...r, kind: 'Survey', href: `/dashboard/${r.id}`, label: r.site_location })),
+    ...(sheetApprovals || []).map((r) => ({
+      ...r,
+      kind: 'Quote',
+      href: `/cost-sheets/${r.id}`,
+      label: r.title || r.surveys?.site_location,
+    })),
+  ].sort((a, b) => {
+    const rank = (r) => (r.approval_status === 'changes_requested' ? 0 : 1);
+    if (rank(a) !== rank(b)) return rank(a) - rank(b);
+    return (a.approval_sent_at || '').localeCompare(b.approval_sent_at || '');
+  });
 
   return (
     <main className="project-main">
@@ -207,6 +251,44 @@ export default async function HomePage() {
                   </div>
                   <div className={`count${overdue ? ' home-overdue' : ''}`}>
                     {overdue ? 'Overdue ' : 'Due '}{formatDate(t.due_date)}
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        )}
+
+        {!isClientViewer && (
+          <div className="panel">
+            <h2>
+              Client approvals
+              {approvalRows.length > 0 && <span className="panel-count">{approvalRows.length}</span>}
+            </h2>
+            <p className="hint">Surveys sent to a client — still waiting, or back asking for changes.</p>
+            {approvalRows.length === 0 && (
+              <div className="empty-state">Nothing out with a client.</div>
+            )}
+            {approvalRows.map((s) => {
+              const waiting = daysSince(s.approval_sent_at);
+              const needsAction = s.approval_status === 'changes_requested';
+              return (
+                <a className="sub-row" key={`${s.kind}-${s.id}`} href={s.href}>
+                  <div>
+                    <div className="site">
+                      {s.label || 'Untitled'}
+                      <span className="client-badge">{s.kind}</span>
+                      {s.clients?.name ? <span className="client-badge">{s.clients.name}</span> : null}
+                    </div>
+                    <div className="meta">
+                      {needsAction
+                        ? `Changes requested${s.approval_name ? ` by ${s.approval_name}` : ''}${s.approval_decided_at ? ` · ${formatDate(s.approval_decided_at)}` : ''}`
+                        : `Sent ${s.approval_sent_at ? formatDate(s.approval_sent_at) : '—'}${waiting != null ? ` · waiting ${waiting} day${waiting === 1 ? '' : 's'}` : ''}`}
+                    </div>
+                  </div>
+                  <div className="count">
+                    <span className={`status-pill status-${needsAction ? 'warn' : 'active'}`}>
+                      {needsAction ? 'Needs action' : 'Awaiting client'}
+                    </span>
                   </div>
                 </a>
               );

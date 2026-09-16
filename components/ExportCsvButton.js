@@ -14,14 +14,14 @@ import { statusLabel, priorityLabel } from '../lib/projectStatus';
 // applies, so this can only ever return rows the user can already see.
 
 const SURVEY_HEADERS = [
-  'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Phone', 'Survey Date',
+  'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Company', 'Phone', 'Survey Date',
   'Address', 'Site Contact', 'Engineer Days', 'Engineers Required', 'Additional Info', 'Submitted At',
   'Area #', 'Area Name', 'Screen Size', 'Orientation', 'Mount Type', 'Measurements',
   'Screen #', 'Power Available', 'Data/4G Available', 'Notes',
 ];
 
 const INSTALLATION_HEADERS = [
-  'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Phone', 'Install Date',
+  'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Company', 'Phone', 'Install Date',
   'Address', 'Site Contact', 'Additional Info', 'Signed By', 'Submitted At',
   'Area #', 'Area Name', 'Screen #', 'Installed', 'Notes',
 ];
@@ -32,7 +32,7 @@ const PROJECT_HEADERS = [
 ];
 
 const VISIT_HEADERS = [
-  'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Phone', 'Visit Date',
+  'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Company', 'Phone', 'Visit Date',
   'Address', 'Site Contact', 'Additional Info', 'Signed', 'Submitted At',
   'Issue #', 'Issue', 'Resolved', 'Fix / Work Done',
 ];
@@ -43,7 +43,7 @@ function surveyRows(surveys) {
   const rows = [];
   for (const s of surveys) {
     const base = [
-      s.site_location || '', s.clients?.name || '', s.engineer_first || '', s.engineer_last || '',
+      s.site_location || '', s.clients?.name || '', s.engineer_first || '', s.engineer_last || '', s.engineer_company || '',
       s.phone || '', s.survey_date ? formatDate(s.survey_date) : '', s.address || '', s.site_contact || '',
       s.engineer_days ?? '', s.engineer_count ?? '', s.additional_info || '',
       s.submitted_at ? formatDateTime(s.submitted_at) : '',
@@ -87,7 +87,7 @@ function installationRows(installations) {
   const rows = [];
   for (const inst of installations) {
     const base = [
-      inst.site_location || '', inst.clients?.name || '', inst.engineer_first || '', inst.engineer_last || '',
+      inst.site_location || '', inst.clients?.name || '', inst.engineer_first || '', inst.engineer_last || '', inst.engineer_company || '',
       inst.phone || '', inst.install_date ? formatDate(inst.install_date) : '', inst.address || '', inst.site_contact || '',
       inst.additional_info || '', inst.signed_by || '',
       inst.submitted_at ? formatDateTime(inst.submitted_at) : '',
@@ -116,7 +116,7 @@ function visitRows(visits) {
   const rows = [];
   for (const v of visits) {
     const base = [
-      v.site_location || '', v.clients?.name || '', v.engineer_first || '', v.engineer_last || '',
+      v.site_location || '', v.clients?.name || '', v.engineer_first || '', v.engineer_last || '', v.engineer_company || '',
       v.phone || '', v.visit_date ? formatDate(v.visit_date) : '', v.address || '', v.site_contact || '',
       v.additional_info || '', v.signature_path ? 'Yes' : 'No',
       v.submitted_at ? formatDateTime(v.submitted_at) : '',
@@ -169,7 +169,7 @@ const CONFIG = {
     searchColumns: ['site_location', 'engineer_first', 'engineer_last'],
     headers: SURVEY_HEADERS,
     buildRows: surveyRows,
-    select: 'site_location, engineer_first, engineer_last, phone, survey_date, address, site_contact, engineer_days, engineer_count, additional_info, submitted_at, locations, clients(name)',
+    select: 'site_location, engineer_first, engineer_last, engineer_company, phone, survey_date, address, site_contact, engineer_days, engineer_count, additional_info, submitted_at, locations, clients(name)',
   },
   installations: {
     table: 'installations',
@@ -178,7 +178,7 @@ const CONFIG = {
     searchColumns: ['site_location', 'engineer_first', 'engineer_last'],
     headers: INSTALLATION_HEADERS,
     buildRows: installationRows,
-    select: 'site_location, engineer_first, engineer_last, phone, install_date, address, site_contact, additional_info, signed_by, submitted_at, locations, clients(name)',
+    select: 'site_location, engineer_first, engineer_last, engineer_company, phone, install_date, address, site_contact, additional_info, signed_by, submitted_at, locations, clients(name)',
   },
   visits: {
     table: 'visits',
@@ -189,7 +189,7 @@ const CONFIG = {
     buildRows: visitRows,
     // Photo paths are deliberately omitted — signed URLs expire in an hour, so
     // a column of them would be worse than nothing.
-    select: 'site_location, engineer_first, engineer_last, phone, visit_date, address, site_contact, additional_info, signature_path, submitted_at, issues, clients(name)',
+    select: 'site_location, engineer_first, engineer_last, engineer_company, phone, visit_date, address, site_contact, additional_info, signature_path, submitted_at, issues, clients(name)',
   },
   projects: {
     table: 'projects',

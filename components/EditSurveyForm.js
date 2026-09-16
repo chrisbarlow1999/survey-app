@@ -1,5 +1,7 @@
 'use client';
 
+import { COMPANY_OPTIONS, OTHER_COMPANY, resolveCompany, splitCompany } from '../lib/engineerCompanies';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
@@ -19,6 +21,8 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
 
   const [form, setForm] = useState({
     engFirst: survey.engineer_first || '',
+    engCompany: splitCompany(survey.engineer_company).choice,
+    engCompanyOther: splitCompany(survey.engineer_company).other,
     engLast: survey.engineer_last || '',
     phone: survey.phone || '',
     date: survey.survey_date || '',
@@ -126,6 +130,7 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
       const newHistoryEntry = { name: editorName, edited_at: new Date().toISOString() };
       const { error: updateErr } = await supabase.from('surveys').update({
         engineer_first: form.engFirst,
+        engineer_company: resolveCompany(form.engCompany, form.engCompanyOther),
         engineer_last: form.engLast,
         phone: form.phone,
         survey_date: form.date,
@@ -173,6 +178,19 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
           <div className="field"><label className="req">First Name</label><input value={form.engFirst} onChange={(e) => setField('engFirst', e.target.value)} /></div>
           <div className="field"><label className="req">Last Name</label><input value={form.engLast} onChange={(e) => setField('engLast', e.target.value)} /></div>
           <div className="field"><label className="req">Phone Number</label><input type="tel" value={form.phone} onChange={(e) => setField('phone', e.target.value)} /></div>
+          <div className="field">
+            <label className="req">Engineering Company</label>
+            <select value={form.engCompany} onChange={(e) => setField('engCompany', e.target.value)}>
+              <option value="">Choose…</option>
+              {COMPANY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          {form.engCompany === OTHER_COMPANY && (
+            <div className="field">
+              <label className="req">Company Name</label>
+              <input value={form.engCompanyOther} onChange={(e) => setField('engCompanyOther', e.target.value)} maxLength={80} />
+            </div>
+          )}
           <div className="field"><label className="req">Date of Survey</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
         </div>
         <div className="field-row">

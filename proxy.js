@@ -27,7 +27,7 @@ export async function proxy(request) {
   // Plural forms only — '/visit' and '/install' are the PUBLIC engineer forms
   // and must stay open. ('/visit'.startsWith('/visits') is false, so they don't
   // get caught by these prefixes.)
-  const needsSession = ['/dashboard', '/admin', '/installations', '/sites', '/visits', '/projects', '/home', '/search'].some((p) => request.nextUrl.pathname.startsWith(p));
+  const needsSession = ['/dashboard', '/admin', '/installations', '/sites', '/visits', '/projects', '/home', '/search', '/companies', '/cost-sheets', '/menus'].some((p) => request.nextUrl.pathname.startsWith(p));
   if (needsSession && !session) {
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
@@ -37,5 +37,5 @@ export async function proxy(request) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*', '/installations/:path*', '/sites/:path*', '/visits/:path*', '/projects/:path*', '/home/:path*', '/search/:path*'],
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/installations/:path*', '/sites/:path*', '/visits/:path*', '/projects/:path*', '/home/:path*', '/search/:path*', '/companies/:path*', '/cost-sheets/:path*', '/menus/:path*'],
 };

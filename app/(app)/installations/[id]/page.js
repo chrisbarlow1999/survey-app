@@ -107,6 +107,7 @@ export default async function InstallationReportPage({ params }) {
         <div className="kv-grid" style={{ marginTop: 12 }}>
           <div className="kv internal-only"><div className="k">Engineer</div><div className="v">{installation.engineer_first} {installation.engineer_last}</div></div>
           <div className="kv internal-only"><div className="k">Phone</div><div className="v">{installation.phone}</div></div>
+          <div className="kv internal-only"><div className="k">Engineering Company</div><div className="v">{installation.engineer_company || '—'}</div></div>
           <div className="kv"><div className="k">Install Date</div><div className="v">{formatDate(installation.install_date)}</div></div>
           <div className="kv"><div className="k">Site Contact</div><div className="v">{installation.site_contact || '—'}</div></div>
           <div className="kv"><div className="k">Address</div><div className="v">{installation.address || '—'}</div></div>

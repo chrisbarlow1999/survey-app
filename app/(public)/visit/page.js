@@ -1,5 +1,7 @@
 'use client';
 
+import { COMPANY_OPTIONS, OTHER_COMPANY, resolveCompany } from '../../../lib/engineerCompanies';
+
 import { useEffect, useState } from 'react';
 import { createClient } from '../../../lib/supabaseClient';
 import { VisitIssueCard } from '../../../components/VisitIssueCard';
@@ -39,6 +41,7 @@ export default function NewVisitPage() {
   const supabase = createClient();
   const [form, setForm] = useState({
     engFirst: '', engLast: '', phone: '', date: '', siteLocation: '', address: '', siteContact: '', clientId: '',
+    engCompany: '', engCompanyOther: '',
     additionalInfo: '',
   });
   const [clients, setClients] = useState([]);
@@ -112,7 +115,7 @@ export default function NewVisitPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    if (!form.engFirst || !form.engLast || !form.phone || !form.date || !form.siteLocation || !form.clientId) {
+    if (!form.engFirst || !form.engLast || !form.phone || !form.date || !form.siteLocation || !form.clientId || !resolveCompany(form.engCompany, form.engCompanyOther)) {
       setError('Please complete engineer details, phone, date, site name and client.');
       return;
     }
@@ -165,6 +168,7 @@ export default function NewVisitPage() {
 
       const { error: insertErr } = await supabase.from('visits').insert({
         engineer_first: form.engFirst,
+        engineer_company: resolveCompany(form.engCompany, form.engCompanyOther),
         engineer_last: form.engLast,
         phone: form.phone,
         visit_date: form.date,
@@ -213,6 +217,19 @@ export default function NewVisitPage() {
             <div className="field"><label className="req">First Name</label><input value={form.engFirst} onChange={(e) => setField('engFirst', e.target.value)} /></div>
             <div className="field"><label className="req">Last Name</label><input value={form.engLast} onChange={(e) => setField('engLast', e.target.value)} /></div>
             <div className="field"><label className="req">Phone Number</label><input type="tel" value={form.phone} onChange={(e) => setField('phone', e.target.value)} /></div>
+            <div className="field">
+              <label className="req">Engineering Company</label>
+              <select value={form.engCompany} onChange={(e) => setField('engCompany', e.target.value)}>
+                <option value="">Choose…</option>
+                {COMPANY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            {form.engCompany === OTHER_COMPANY && (
+              <div className="field">
+                <label className="req">Company Name</label>
+                <input value={form.engCompanyOther} onChange={(e) => setField('engCompanyOther', e.target.value)} maxLength={80} />
+              </div>
+            )}
             <div className="field"><label className="req">Visit Date</label><input type="date" min="2000-01-01" max="2100-12-31" value={form.date} onChange={(e) => setField('date', e.target.value)} /></div>
           </div>
           <div className="field-row">

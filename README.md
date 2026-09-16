@@ -51,6 +51,19 @@ survey, and the report a client receives still says so.
   project + site so a rollout with a survey per venue keeps all of them. Where
   that's wrong — a site surveyed in phases rather than re-surveyed — the
   project page's *Surveyed screens* panel lets a PM overrule it per survey.
+- `/cost-sheets` — quotes built from a survey. Quantities seed from the
+  areas and screens; prices come from the catalogue and the client's rates.
+  Shows cost, price and margin, all internal.
+- `/quote/<token>` — the client-facing quote. No account needed; the client
+  approves or asks for changes, choosing first and confirming after, like the
+  survey approval. Never includes cost or margin.
+- `/menus` — stadium outlet menus: what every outlet sells under each menu set
+  (Premier League, UEFA), set up by importing the client's range sheet and the
+  master schedule. See **Menus** below.
+- `/companies` — which engineering firm attended, across surveys, installs and
+  engineer visits, filterable by client and date. Share is a percentage of the
+  records that name a company, and records made before the field existed are
+  listed separately as "Not recorded" rather than dropped.
 - `/search` — one box for everything: projects, sites, surveys, installs and
   engineer visits, matched on site name, reference or engineer. Each section
   links through to its own list, which is where filtering and paging live. The
@@ -250,11 +263,83 @@ hand-synced copies.
     data/4G and notes needed no migration — they were already in `locations`,
     the page just never drew them. The page works before this runs too; it
     just shows no site contact or attachments until it does.
+42. Also run `supabase/035_engineer_company.sql` — adds `engineer_company` to
+    surveys, installations and visits, so `/companies` can report which
+    engineering firm attended. The options (SCCI, EIT, Internal, Index, plus
+    Other) live in `lib/engineerCompanies.js`, not in the database, so adding
+    a firm needs no migration. Null on every pre-035 record; the report counts
+    those as "Not recorded" rather than hiding them.
+43. Also run `supabase/036_cost_sheets.sql` — adds the cost sheet subsystem:
+    `price_items` (the catalogue), `price_client_rates` (per-client prices)
+    and `cost_sheets` (a quote, its lines and its approval state), plus the
+    two functions the public `/quote/<token>` page uses. It seeds the
+    catalogue with your screen models and mount types but no prices. Cost
+    sheets are internal only — `client_viewer` accounts are refused by RLS,
+    and the client-facing function strips `unit_cost` out of every line in
+    SQL so margin cannot leak through the page.
+
+44. Also run `supabase/037_menus.sql` — adds the Menus section: venues,
+    sections, products, outlets, menu sets and the ranges grid, plus three
+    security-invoker functions for the bulk copies and the import. Internal
+    staff with access to the venue's client only; `client_viewer` accounts
+    get nothing yet. `/menus` shows a plain error until it's run.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
 and no markers, so **delete existing surveys and install confirmations** rather
 than trying to read them.
+
+## Menus
+
+For venues with dozens of outlets — stadiums above all — where the same menu
+board is reused across every outlet that sells the same things. Today that's
+two spreadsheets checked against each other by hand: the client's
+"Products by area" sheet (products down the side, outlets across, a checkbox
+per cell) and Linney's master schedule (a KEY tab of kiosk → store code →
+screens → schedule, then a tab per schedule).
+
+A **venue** holds one product list, its outlets, and one or more **menu sets**
+— named menus that run on different days, like Premier League and UEFA. The
+**Ranges** tab is the client's sheet as a live grid, the same way round; each
+tick saves as it's clicked. Filter the outlets and use a row's *all shown* /
+*none* to change a product across a stand at once; click an outlet's name to
+make it identical to another outlet. A new menu set can start as a copy of an
+existing one, and any two sets can be compared, which lists every outlet whose
+range differs.
+
+**Groups** works out which outlets could share a schedule: identical ticks under
+that set *and* the same screens (a schedule plays to a fixed set of screens, so
+4 landscape and 4 landscape + 1 portrait can't share). It sets that against the
+schedule each outlet is on today and flags two kinds of disagreement — one range
+spread over several schedules, and one schedule covering several ranges (someone
+is showing the wrong menu). It proposes; nothing is renamed in MyScreens.
+"W DIRECTIONAL" schedules carry location-specific wayfinding, so a split
+involving one of those is usually deliberate.
+
+**Import** reads either spreadsheet, found by its headers rather than its tab
+names, and previews every change before writing: new products and outlets,
+price changes, and — on a re-import — exactly which outlets gained or lost which
+products. Products and outlets missing from a sheet are left alone, not
+archived. Duplicate rows are merged with a warning, which names both prices when
+they differ. Parsing happens server-side (`/api/menus/read-workbook`, exceljs);
+the writes go through the browser client, so RLS decides what lands where.
+
+**How identity works.** A product is its section + name + detail line, so
+"Coke Zero, 500ml" and "Coke Zero, 500ml Draught" are two products, and a
+renamed product imports as a new one (the old one shows as "not on this sheet").
+An outlet is its name. The master schedule names kiosks differently
+("EK12 -AWAY (EK12)"), so it's matched on the exact name, then without the
+bracketed alias, then on the leading code — and skipped, with a warning, when the
+code is ambiguous ("NK81" vs "NK81 Betfred").
+
+**Screens.** Landscape/portrait counts come from the master schedule and drive
+grouping. The client's count is kept alongside and highlighted on the Outlets
+tab where it disagrees — on the Man United sheets, 45 outlets did.
+
+**Not built yet:** the asset library (which stock codes show which products),
+fixtures and dated changes, client change requests with approval, design briefs,
+and the per-fixture upload checklist. The schedule tabs of the master schedule
+(translite × pre/during/post match playlists) aren't imported yet.
 
 ## Client PDF vs Internal PDF
 

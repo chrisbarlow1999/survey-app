@@ -1211,3 +1211,159 @@ a.attachment-name:hover{text-decoration:underline;}
   border:1px solid var(--caution-line);border-radius:var(--radius-sm);padding:8px 10px;
 }
 @media (prefers-reduced-motion: reduce){.decision-card{transition:none;}}
+
+/* ---------- Cost sheet editor ---------- */
+/* Inputs live inside table cells here, so they need to fill the cell rather
+   than take the page-wide default width. The base input rule carries four
+   :not() clauses — mirror the chain to win on specificity, as elsewhere. */
+.cost-table td input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=submit]):not([type=button]){
+  width:100%;font-size:13px;padding:5px 7px;
+}
+.cost-table .num input{text-align:right;}
+.cost-table .cost-col-num{width:112px;}
+.cost-table .cost-col-unit{width:92px;}
+.cost-table td{white-space:normal;}
+/* A line with no price is the likeliest mistake on a sheet seeded from a
+   catalogue that starts empty, so it's coloured rather than just blank. */
+.cost-row-unpriced td{background:var(--caution-soft);}
+.cost-remove{
+  border:1px solid var(--border);background:var(--surface);color:var(--text-tertiary);
+  border-radius:4px;cursor:pointer;line-height:1;padding:3px 8px;font-size:14px;
+}
+.cost-remove:hover{border-color:var(--danger);color:var(--danger);background:var(--danger-soft);}
+
+/* ---------- Client quote ---------- */
+/* .data-table carries a 940px minimum so the ten-column Projects table stays
+   readable. A five-line quote must not inherit it: that floor is what pushed
+   the total off the right-hand edge behind a scroll bar. */
+.data-table.quote-table{min-width:0;}
+.quote-table td:first-child{white-space:normal;}
+/* The total is the figure the client is agreeing to, so it reads as one. */
+.quote-table tfoot td{font-weight:600;font-size:14px;color:var(--text);}
+
+/* On a phone each line stacks: description, then "3 each × £100" against the
+   line total. Two layouts rather than one squeezed table, because five columns
+   don't fit a phone. */
+.quote-lines{display:none;}
+@media (max-width: 640px){
+  .data-table.quote-table{display:none;}
+  .quote-lines{display:flex;flex-direction:column;}
+  .quote-line{padding:11px 0;border-bottom:1px solid var(--border);}
+  .quote-line-desc{font-weight:500;color:var(--text);margin-bottom:3px;}
+  .quote-line-maths{
+    display:flex;justify-content:space-between;gap:12px;
+    font-size:13px;color:var(--text-secondary);font-variant-numeric:tabular-nums;
+  }
+  .quote-line-total{color:var(--text);font-weight:500;white-space:nowrap;}
+  .quote-line-grand{
+    display:flex;justify-content:space-between;gap:12px;
+    border-bottom:none;border-top:1px solid var(--border-strong);
+    font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;
+  }
+}
+
+/* ---------- Menus ---------- */
+/* Table cells that edit in place. Unlike .inline-input these sit in every row
+   at once, so they look like text until hovered or focused. The :not() chain
+   matches the global input rule's, which would otherwise outrank a class. */
+.menu-field:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=submit]):not([type=button]){
+  width:100%;min-width:60px;background:transparent;border:1px solid transparent;border-radius:5px;
+  color:var(--text);font-family:var(--font-body);font-size:13px;padding:5px 7px;outline:none;
+}
+.menu-field:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=submit]):not([type=button]):hover{border-color:var(--border);background:var(--surface);}
+.menu-field:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=submit]):not([type=button]):focus{border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px var(--accent-soft);}
+.menu-field::placeholder{color:var(--text-tertiary);}
+.menu-section-name{font-weight:600;font-size:14px;letter-spacing:0.02em;max-width:320px;}
+.menu-count .menu-field{text-align:right;max-width:70px;margin-left:auto;}
+.data-table.menu-product-table,.data-table.menu-group-table{min-width:0;}
+.data-table.menu-outlet-table{min-width:1360px;}
+.menu-outlet-table td:nth-child(1){min-width:180px;}
+.menu-outlet-table td:nth-child(2){min-width:110px;}
+.menu-outlet-table td:nth-child(3){min-width:130px;}
+.menu-outlet-table td:nth-child(4){min-width:250px;}
+.menu-outlet-table td:nth-child(7){min-width:120px;}
+.menu-outlet-table td:nth-child(8){min-width:200px;}
+.menu-outlet-table td:nth-child(9){min-width:180px;}
+.menu-product-table td,.menu-outlet-table td{padding:4px 6px;vertical-align:middle;}
+.menu-product-table td:first-child{width:32%;}
+.menu-section-block{margin:18px 0 8px;}
+.menu-section-head{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.menu-section-head .btn{padding:4px 10px;}
+.menu-add-row td{background:var(--surface-sunken);}
+.menu-mismatch{background:var(--caution-soft);color:var(--text);font-weight:500;}
+.menu-warn{color:var(--danger);}
+
+.menu-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+.menu-diff-head{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+.menu-diff-list{margin:10px 0;padding-left:18px;font-size:13px;line-height:1.7;max-height:320px;overflow:auto;}
+.menu-diff-add{color:var(--success);}
+.menu-diff-remove{color:var(--danger);}
+.menu-outlet-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 16px;border-color:var(--accent-line);}
+
+/* The grid: ~100 outlets across, so names stand on end and the product
+   column stays pinned while the rest scrolls. */
+.menu-grid-panel{padding:0;overflow:hidden;}
+.menu-grid-scroll{overflow:auto;max-height:calc(100vh - 150px);}
+.menu-grid{border-collapse:separate;border-spacing:0;font-size:12.5px;}
+.menu-grid th,.menu-grid td{border-bottom:1px solid var(--border);border-right:1px solid var(--border);}
+.menu-grid thead th{position:sticky;top:0;z-index:2;background:var(--surface);border-bottom:1px solid var(--border-strong);}
+.menu-grid-corner{left:0;z-index:3 !important;text-align:left;vertical-align:bottom;padding:8px 12px;min-width:260px;
+  font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-tertiary);}
+.menu-grid-outlet{padding:0;vertical-align:bottom;}
+.menu-grid-outlet button{
+  display:block;width:28px;height:150px;padding:6px 0;border:none;background:none;cursor:pointer;
+  color:var(--text-secondary);font-family:var(--font-body);font-size:12px;font-weight:500;
+}
+.menu-grid-outlet button span{display:inline-block;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;max-height:138px;overflow:hidden;text-overflow:ellipsis;}
+.menu-grid-outlet button:hover{color:var(--text);background:var(--surface-hover);}
+.menu-grid-outlet.on button{color:var(--accent);background:var(--accent-soft);}
+.menu-grid tbody th{position:sticky;left:0;z-index:1;background:var(--surface);text-align:left;font-weight:400;}
+.menu-grid-section th{
+  background:var(--surface-sunken) !important;padding:10px 12px 6px;
+  font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);
+}
+.menu-grid-section td{background:var(--surface-sunken);}
+.menu-grid-product{padding:6px 12px;min-width:260px;max-width:260px;}
+.menu-grid-product-name{display:flex;justify-content:space-between;gap:8px;color:var(--text);font-weight:500;}
+.menu-grid-price{color:var(--text-secondary);font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.menu-grid-product-detail{color:var(--text-tertiary);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.menu-grid-row-actions{display:flex;gap:6px;align-items:center;margin-top:2px;font-size:11px;color:var(--text-tertiary);}
+.menu-grid-row-actions span{font-variant-numeric:tabular-nums;margin-right:auto;}
+.menu-grid-row-actions button{border:none;background:none;padding:0 2px;color:var(--accent);cursor:pointer;font-size:11px;font-family:var(--font-body);opacity:0;}
+.menu-grid tbody tr:hover .menu-grid-row-actions button,.menu-grid-row-actions button:focus-visible{opacity:1;}
+.menu-grid tbody tr:hover td{background:var(--surface-hover);}
+.menu-cell{padding:0;}
+.menu-cell button{display:block;width:28px;height:32px;border:none;background:transparent;cursor:pointer;position:relative;}
+.menu-cell button::after{
+  content:"";position:absolute;inset:9px 7px;border:1.5px solid var(--border-strong);border-radius:3px;background:var(--surface);
+}
+.menu-cell.on button::after{background:var(--accent);border-color:var(--accent);}
+.menu-cell.on button::before{
+  content:"";position:absolute;left:11px;top:12px;width:4px;height:7px;z-index:1;
+  border:solid var(--on-accent);border-width:0 2px 2px 0;transform:rotate(45deg);
+}
+.menu-cell.col-on{background:var(--accent-soft);}
+.menu-cell.diff-add button::after{background:var(--success);border-color:var(--success);}
+.menu-cell.diff-remove button::after{border:2px solid var(--danger);background:var(--danger-soft);}
+.menu-cell button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+
+.menu-group{border:1px solid var(--border);border-radius:var(--radius-sm);margin:8px 0;background:var(--surface);}
+.menu-group summary{display:flex;gap:12px;align-items:center;padding:10px 12px;cursor:pointer;list-style:none;}
+.menu-group summary::-webkit-details-marker{display:none;}
+.menu-group[open] summary{border-bottom:1px solid var(--border);}
+.menu-group-num{flex:0 0 28px;height:28px;border-radius:50%;background:var(--surface-hover);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-secondary);}
+.menu-group-main{flex:1;min-width:0;display:flex;flex-direction:column;}
+.menu-group-outlets{font-weight:500;color:var(--text);}
+.menu-group-meta{font-size:12.5px;color:var(--text-secondary);}
+.menu-group-flags{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:45%;}
+.menu-group-body{padding:8px 12px 12px;}
+.menu-group-products{font-size:13px;line-height:1.7;margin-top:10px;color:var(--text-secondary);}
+.menu-group-products strong{color:var(--text);font-weight:600;}
+
+.menu-import{margin-top:16px;border-top:1px solid var(--border);padding-top:14px;}
+.menu-import label{font-size:13.5px;}
+.menu-import-check{display:flex;gap:8px;align-items:center;margin:4px 0 8px;}
+.menu-plan ul{margin:8px 0;padding-left:18px;font-size:13.5px;line-height:1.7;}
+.menu-toolbar select,.menu-toolbar input{width:auto;flex:0 1 auto;}
+.menu-toolbar input[type=search]{flex:0 1 320px;}
+.menu-newset input,.menu-newset select{flex:0 1 240px;}
