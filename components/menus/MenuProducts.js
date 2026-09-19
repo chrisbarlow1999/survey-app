@@ -3,13 +3,14 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../../lib/supabaseClient';
+import { MenuCatalogueTools } from './MenuCatalogueTools';
 
 // The venue's one product list, grouped under the slide titles the client
 // uses. Fields save when you leave them, like project fields do.
 //
 // Products are archived rather than deleted: a deleted product would take its
 // ticks with it, and with them the record of who sold it.
-export function MenuProducts({ venueId, sections, products }) {
+export function MenuProducts({ venueId, sections, products, clientId, clientName, catalogue }) {
   const supabase = createClient();
   const router = useRouter();
   const [error, setError] = useState('');
@@ -67,6 +68,16 @@ export function MenuProducts({ venueId, sections, products }) {
         One list for the whole venue. The detail line is part of what makes a product distinct —
         a 500ml bottle and a 500ml draught of the same drink are two products.
       </p>
+      {clientId && (
+        <MenuCatalogueTools
+          venueId={venueId}
+          clientId={clientId}
+          clientName={clientName}
+          catalogue={catalogue || []}
+          sections={sections}
+          products={products.filter((p) => !p.archived_at)}
+        />
+      )}
       <div className="toolbar" style={{ marginBottom: 8 }}>
         <form className="filter-row" onSubmit={addSection} style={{ margin: 0 }}>
           <input

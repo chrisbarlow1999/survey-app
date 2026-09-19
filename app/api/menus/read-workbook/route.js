@@ -22,12 +22,19 @@ export async function POST(request) {
   }
 
   let file;
+  let mappings = {};
   try {
     const form = await request.formData();
     file = form.get('file');
+    // Sheet layouts to read with, as { [sheetName]: mapping } — a saved
+    // profile, or whatever the import screen has been changed to. Anything not
+    // named here is worked out from the sheet itself.
+    const raw = form.get('mappings');
+    if (typeof raw === 'string' && raw) mappings = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: 'Expected a file upload.' }, { status: 400 });
   }
+  if (!mappings || typeof mappings !== 'object' || Array.isArray(mappings)) mappings = {};
   if (!file || typeof file.arrayBuffer !== 'function') {
     return NextResponse.json({ error: 'No file received.' }, { status: 400 });
   }
@@ -36,10 +43,10 @@ export async function POST(request) {
   }
 
   try {
-    const result = await readMenuWorkbook(Buffer.from(await file.arrayBuffer()));
+    const result = await readMenuWorkbook(Buffer.from(await file.arrayBuffer()), mappings);
     if (!result.rangeSheets.length && !result.key) {
       return NextResponse.json({
-        error: 'No range sheet or master schedule KEY found in that workbook. A range sheet has "Store Name within Linney MyScreens System" in cell E1; a KEY sheet starts MENU | KIOSK | STORE CODE | SCREENS | SCHEDULE CODE.',
+        error: 'Nothing readable in that workbook. A range sheet needs products down the side, outlets across the top, and a tick (TRUE/FALSE, Yes/No or X) in every cell that sells. A master schedule needs a tab with a KIOSK column.',
       }, { status: 422 });
     }
     return NextResponse.json(result);

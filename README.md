@@ -284,6 +284,25 @@ hand-synced copies.
     staff with access to the venue's client only; `client_viewer` accounts
     get nothing yet. `/menus` shows a plain error until it's run.
 
+45. Also run `supabase/038_menu_catalogue.sql` — adds each client's product
+    catalogue (`menu_catalogue_products`, plus `menu_products.catalogue_id`),
+    the two functions that move products between a catalogue and a venue, and
+    `menu_copy_venue()` for starting a venue as a copy of another. Until it's
+    run, `/menus/catalogue/...` errors and the catalogue buttons on a venue's
+    Products tab stay hidden; the rest of Menus carries on as before.
+
+46. Also run `supabase/039_menu_import_profiles.sql` — saved spreadsheet
+    layouts per client, so a new client's sheet is set up on screen instead of
+    in code. Until it's run, the import screen works the layout out from the
+    sheet every time and the saved-layout controls do nothing.
+
+47. Also run `supabase/040_menu_change_requests.sql` — change requests, their
+    lines, and `menu_apply_change_request()`, which writes an approved request
+    into the menu in one go and stamps `applied_at` so it can't happen twice.
+    Internal staff only, like the rest of Menus; client accounts raising their
+    own requests needs its own policies and isn't in here. The venue's Changes
+    tab says so until it's run.
+
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
 and no markers, so **delete existing surveys and install confirmations** rather
@@ -316,13 +335,31 @@ is showing the wrong menu). It proposes; nothing is renamed in MyScreens.
 "W DIRECTIONAL" schedules carry location-specific wayfinding, so a split
 involving one of those is usually deliberate.
 
-**Import** reads either spreadsheet, found by its headers rather than its tab
-names, and previews every change before writing: new products and outlets,
-price changes, and — on a re-import — exactly which outlets gained or lost which
-products. Products and outlets missing from a sheet are left alone, not
-archived. Duplicate rows are merged with a warning, which names both prices when
-they differ. Parsing happens server-side (`/api/menus/read-workbook`, exceljs);
-the writes go through the browser client, so RLS decides what lands where.
+**Import** runs in three steps with a running account of what would change
+beside them — *Spreadsheet*, *Layout*, *Where it goes* — and writes nothing
+until Apply. It previews every change: new products and outlets, price changes,
+and, on a re-import, exactly which outlets gained or lost which products.
+Products and outlets missing from a sheet are left alone, not archived.
+Duplicate rows are merged with a warning, which names both prices when they
+differ. Parsing happens server-side (`/api/menus/read-workbook`, exceljs); the
+writes go through the browser client, so RLS decides what lands where.
+
+**No client's layout is hard-coded.** A range sheet is found by its *shape* —
+a block of ticks with labels up the side and outlet names across the top — so
+TRUE/FALSE, Yes/No, Y/N and X all read as ticks, and the tab can be called
+anything. From that block the reader works out which row holds the outlet names
+(the one with the most *different* values, not the fullest — a screen-count row
+is just as full), which column holds the product name (most distinct values),
+the price (reads as money), the detail line (its own column, or the line under
+each product), the sections (their own column, or headings between the
+products), and what the rows between the names and the first product mean.
+*Layout* shows that guess against the sheet itself and lets it be corrected,
+then **Save layout** stores it against the client (`menu_import_profiles`) so
+the next import is one click. A layout deliberately doesn't record which columns
+are outlets — those are found again every time, so a client adding a kiosk
+doesn't need the layout editing. The master schedule is found by a tab with a
+KIOSK column, and its store code, screens and schedule columns by their
+headings.
 
 **How identity works.** A product is its section + name + detail line, so
 "Coke Zero, 500ml" and "Coke Zero, 500ml Draught" are two products, and a
@@ -332,14 +369,41 @@ An outlet is its name. The master schedule names kiosks differently
 bracketed alias, then on the leading code — and skipped, with a warning, when the
 code is ambiguous ("NK81" vs "NK81 Betfred").
 
+**Onboarding the next venue.** A client's **product catalogue**
+(`/menus/catalogue/<client>`, linked from `/menus`) is everything they sell
+across their sites. A venue's Products tab takes copies from it (*Add from
+catalogue*) and seeds it from what it already has (*Send to catalogue*), so the
+first venue set up by hand pays for the next one. A copy is a copy: the venue
+keeps its own price and its own ticks, and editing a catalogue line later
+changes nothing that has already left it — `catalogue_id` records only where a
+product came from. A new venue can also start as a **copy of an existing
+venue**, taking its sections, products and menu sets, and optionally its outlets
+and their ranges. Store codes and schedules are never copied: they belong to the
+site they came from.
+
 **Screens.** Landscape/portrait counts come from the master schedule and drive
 grouping. The client's count is kept alongside and highlighted on the Outlets
 tab where it disagrees — on the Man United sheets, 45 outlets did.
 
-**Not built yet:** the asset library (which stock codes show which products),
-fixtures and dated changes, client change requests with approval, design briefs,
-and the per-fixture upload checklist. The schedule tabs of the master schedule
-(translite × pre/during/post match playlists) aren't imported yet.
+**Changes** is a request from the ask to the screens, in three steps with a
+running account beside them: the fixture (which menu set, and the date it has
+to be on screen), the outlets, then prices and what goes on or off at those
+outlets. The panel does the check that takes hours today — outlets sharing a
+schedule show the same content, so a change landing on some of them and not the
+others is raised *while it's being typed*, with two ways out: change all of
+them, or note that the schedule needs splitting. Saving it produces the brief
+the studio reads (every ask in words, the outlets and their store codes, the
+schedules to reload) and a status: Received → In design → Ready to load → Live.
+**Apply to the menu** is a separate, once-only action (`menu_apply_change_request`,
+stamped with `applied_at`): until it's pressed the ranges keep saying what the
+screens actually say, which is the point of holding the ask apart from the menu.
+
+**Not built yet:** the asset library (which stock codes show which products), so
+a brief lists products rather than showing the tariff artwork; client logins, so
+requests are raised by Linney on the client's behalf for now; fixtures as
+records with dated changes; and the per-fixture upload checklist. The schedule
+tabs of the master schedule (translite × pre/during/post match playlists) aren't
+imported yet.
 
 ## Client PDF vs Internal PDF
 

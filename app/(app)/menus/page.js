@@ -17,10 +17,25 @@ export default async function MenusPage({ searchParams }) {
     .order('name', { ascending: true });
   query = showArchived ? query.not('archived_at', 'is', null) : query.is('archived_at', null);
 
-  const [{ data: venues, error }, { data: clients }] = await Promise.all([
+  // A second, unfiltered read: a copy can start from any current venue, even
+  // when this page is showing the archived ones.
+  const [{ data: venues, error }, { data: clients }, { data: sourceVenues }] = await Promise.all([
     query,
     supabase.from('clients').select('id, name').order('name', { ascending: true }),
+    supabase
+      .from('menu_venues')
+      .select('id, name, client_id, clients(name), menu_products(count), menu_sets(count), menu_outlets(count)')
+      .is('archived_at', null)
+      .order('name', { ascending: true }),
   ]);
+
+  // Every client we hold a venue for has a product catalogue worth reaching.
+  const catalogueClients = [];
+  for (const v of sourceVenues || []) {
+    const found = catalogueClients.find((c) => c.id === v.client_id);
+    if (found) found.venues.push(v.name);
+    else catalogueClients.push({ id: v.client_id, name: v.clients?.name || 'Client', venues: [v.name] });
+  }
 
   return (
     <main>
@@ -30,8 +45,26 @@ export default async function MenusPage({ searchParams }) {
           What every outlet sells, per menu set. Tick the ranges once and the schedules can be
           worked out from them instead of compared across spreadsheets.
         </p>
-        <CreateMenuVenueForm clients={clients || []} />
+        <CreateMenuVenueForm clients={clients || []} venues={sourceVenues || []} />
       </div>
+
+      {catalogueClients.length > 0 && (
+        <div className="panel" style={{ padding: '12px 16px' }}>
+          <h3 style={{ fontSize: 15, margin: '0 0 2px' }}>Product catalogues</h3>
+          <p className="hint" style={{ marginTop: 0 }}>
+            What each client sells across their venues. Set one up once and their next venue starts
+            from it instead of from a blank list.
+          </p>
+          {catalogueClients.map((c) => (
+            <a className="sub-row" key={c.id} href={`/menus/catalogue/${c.id}`}>
+              <div>
+                <div className="site">{c.name}</div>
+                <div className="meta">{c.venues.length} {c.venues.length === 1 ? 'venue' : 'venues'} · {c.venues.join(', ')}</div>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
 
       <div className="panel" style={{ padding: '12px 16px' }}>
         <div className="toolbar" style={{ marginBottom: 8 }}>
