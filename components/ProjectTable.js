@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
 import { formatDate } from '../lib/formatDate';
 import { PROJECT_STATUSES, statusLabel, statusTone } from '../lib/projectStatus';
+import { ENGINEER_COMPANIES } from '../lib/engineerCompanies';
 import { resolveProjectSort } from '../lib/listQuery';
 import { screenTotals } from '../lib/screenCount';
 import { valueTotals, formatGBP } from '../lib/money';
@@ -175,6 +176,25 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
             <option value="">Set owner…</option>
             <option value="none">Unassigned</option>
             {owners.map((o) => <option key={o.id} value={o.id}>{o.full_name || o.email}</option>)}
+          </select>
+
+          <select
+            className="inline-select"
+            value=""
+            disabled={busy}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) return;
+              applyBulk(
+                { install_company: v === 'none' ? null : v },
+                'Install firm changed',
+                `Set to ${v === 'none' ? 'nobody' : v} in bulk`
+              );
+            }}
+          >
+            <option value="">Set install firm…</option>
+            <option value="none">Nobody booked</option>
+            {ENGINEER_COMPANIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
 
           <input

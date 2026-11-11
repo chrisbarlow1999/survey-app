@@ -4,17 +4,20 @@ import { applyArchiveFilter } from '../../../../components/ArchiveFilter';
 import { statusLabel, statusTone, CLOSED_STATUSES } from '../../../../lib/projectStatus';
 import { ProjectViewTabs } from '../../../../components/ProjectViewTabs';
 import { ProjectFilters } from '../../../../components/ProjectFilters';
+import { InstallCalendar } from '../../../../components/InstallCalendar';
 import { projectHref } from '../../../../lib/projectBackLink';
 import { screenTotals } from '../../../../lib/screenCount';
 import { engineerDays } from '../../../../lib/surveyScreens';
-import { buildWeeks, startOfWeek, addWeeks, todayIso } from '../../../../lib/scheduleWeeks';
+import { buildMonthGrid, startOfWeek, addDays, startOfMonth, todayIso } from '../../../../lib/installCalendar';
 
 export const dynamic = 'force-dynamic';
 
-// A quarter at a time — far enough ahead to plan resourcing, short enough that
-// the whole thing fits on a screen without scrolling past empty weeks.
-const WEEKS = 12;
-
+// The install calendar. Month to scan for busy days, week to see who is out
+// and when — a row per engineering firm, so a day with SCCI in Nottingham and
+// a spare Compass site nearby is visible rather than deduced.
+//
+// Both views read the same data; only the date range differs, so the figures
+// above always describe exactly what is on screen.
 export default async function ProjectSchedulePage({ searchParams }) {
   const params = (await searchParams) || {};
   const q = (params.q || '').trim();
@@ -22,12 +25,18 @@ export default async function ProjectSchedulePage({ searchParams }) {
   const status = params.status || '';
   const owner = params.owner || '';
   const archived = params.archived || '';
-  const offset = Number.parseInt(params.offset, 10) || 0;
+  const view = params.view === 'week' ? 'week' : 'month';
 
   const today = todayIso();
-  const windowStart = addWeeks(startOfWeek(today), offset * WEEKS);
-  const windowEnd = addWeeks(windowStart, WEEKS); // exclusive
-  const weeks = buildWeeks(windowStart, WEEKS);
+  // An unparseable ?start= falls back to today rather than throwing a date
+  // error at someone who edited the URL.
+  const anchor = /^\d{4}-\d{2}-\d{2}$/.test(params.start || '') ? params.start : today;
+
+  // The range has to cover the whole grid, including the neighbouring-month
+  // days a month view shows, or those cells would wrongly read as empty.
+  const range = view === 'month'
+    ? (() => { const g = buildMonthGrid(anchor); return { from: g.gridStart, to: g.gridEnd }; })()
+    : (() => { const s = startOfWeek(anchor); return { from: s, to: addDays(s, 7) }; })();
 
   const supabase = await createClient();
 
@@ -46,26 +55,26 @@ export default async function ProjectSchedulePage({ searchParams }) {
     return out;
   }
 
-  const SELECT = 'id, title, site_location, status, install_date, due_date, screen_count, client_id, clients(id, name), owner:profiles!owner_id(id, full_name, email)';
+  const SELECT = 'id, title, site_location, status, install_date, install_company, install_start_time, install_end_time, due_date, screen_count, client_id, clients(id, name), owner:profiles!owner_id(id, full_name, email)';
   const closed = `(${CLOSED_STATUSES.join(',')})`;
 
   const [{ data: booked, error }, { data: clients }, { data: owners }, { data: late }, { count: unbooked }] =
     await Promise.all([
       applyFilters(supabase.from('projects').select(SELECT))
-        .gte('install_date', windowStart)
-        .lt('install_date', windowEnd)
+        .gte('install_date', range.from)
+        .lt('install_date', range.to)
         .order('install_date', { ascending: true }),
       supabase.from('clients').select('id, name').order('name', { ascending: true }),
       supabase.from('profiles').select('id, full_name, email').in('role', ['user', 'super_admin']).eq('active', true).order('full_name', { ascending: true }),
       // Booked for a date that's been and gone, on work that isn't finished.
-      // Deliberately not scoped to the window — it's a problem wherever you
+      // Deliberately not scoped to the view — it's a problem wherever you
       // happen to be looking.
       applyFilters(supabase.from('projects').select(SELECT))
         .lt('install_date', today)
         .not('status', 'in', closed)
         .order('install_date', { ascending: true }),
       // Open work with no date yet: the other half of the schedule, and the
-      // reason a light-looking quarter isn't necessarily a quiet one.
+      // reason a light-looking month isn't necessarily a quiet one.
       applyFilters(supabase.from('projects').select('id', { count: 'exact', head: true }))
         .is('install_date', null)
         .not('status', 'in', closed),
@@ -88,17 +97,19 @@ export default async function ProjectSchedulePage({ searchParams }) {
     });
   }
 
-  const windowScreens = screenTotals(rows);
-  const windowCrew = engineerDays(Object.values(surveysByProject).flat());
+  const viewScreens = screenTotals(rows);
+  const viewCrew = engineerDays(Object.values(surveysByProject).flat());
+  const unassigned = rows.filter((r) => !(r.install_company || '').trim()).length;
 
-  function navHref(nextOffset) {
+  function toggleHref(nextView) {
     const sp = new URLSearchParams();
     ['q', 'client', 'status', 'owner', 'archived'].forEach((k) => {
       if (params[k]) sp.set(k, params[k]);
     });
-    if (nextOffset !== 0) sp.set('offset', String(nextOffset));
-    const qs = sp.toString();
-    return qs ? `/projects/schedule?${qs}` : '/projects/schedule';
+    sp.set('view', nextView);
+    // Keep the reader roughly where they were when switching views.
+    sp.set('start', nextView === 'month' ? startOfMonth(anchor) : startOfWeek(anchor));
+    return `/projects/schedule?${sp.toString()}`;
   }
 
   return (
@@ -111,22 +122,27 @@ export default async function ProjectSchedulePage({ searchParams }) {
           <div className="stat-label">Installs In View</div>
         </div>
         <div className="stat-tile">
-          <div className="stat-value">{windowScreens.total}</div>
+          <div className="stat-value">{viewScreens.total}</div>
           <div className="stat-label">Screens In View</div>
-          {windowScreens.unestimated > 0 && (
-            <div className="stat-note">{windowScreens.unestimated} not estimated</div>
+          {viewScreens.unestimated > 0 && (
+            <div className="stat-note">{viewScreens.unestimated} not estimated</div>
           )}
         </div>
         <div className="stat-tile">
-          <div className="stat-value">{windowCrew.total}</div>
+          <div className="stat-value">{viewCrew.total}</div>
           <div className="stat-label">Engineer-Days In View</div>
           {/* Days × engineers, from the linked surveys. A survey missing either
               number is left out rather than assumed to be one person. */}
-          {windowCrew.incomplete > 0 && (
+          {viewCrew.incomplete > 0 && (
             <div className="stat-note">
-              {windowCrew.incomplete} survey{windowCrew.incomplete === 1 ? '' : 's'} without an estimate
+              {viewCrew.incomplete} survey{viewCrew.incomplete === 1 ? '' : 's'} without an estimate
             </div>
           )}
+        </div>
+        <div className={`stat-tile${unassigned > 0 ? ' stat-tile-alert' : ''}`}>
+          <div className="stat-value">{unassigned}</div>
+          <div className="stat-label">No Firm Booked</div>
+          <div className="stat-note">Dated, but nobody assigned</div>
         </div>
         <div className="stat-tile">
           <div className="stat-value">{unbooked || 0}</div>
@@ -136,7 +152,12 @@ export default async function ProjectSchedulePage({ searchParams }) {
 
       <ProjectFilters params={params} clients={clients} owners={owners} basePath="/projects/schedule" showSort={false} />
 
-      {offset === 0 && (late || []).length > 0 && (
+      <div className="view-tabs" style={{ marginBottom: 14 }}>
+        <a className={view === 'month' ? 'on' : ''} href={toggleHref('month')}>Month</a>
+        <a className={view === 'week' ? 'on' : ''} href={toggleHref('week')}>Week</a>
+      </div>
+
+      {(late || []).length > 0 && (
         <div className="panel">
           <h2>Install date has passed <span className="panel-count">{late.length}</span></h2>
           <p className="hint">
@@ -151,7 +172,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
                   {p.clients?.name ? <span className="client-badge">{p.clients.name}</span> : null}
                 </div>
                 <div className="meta">
-                  {p.site_location || 'No site set'} · {p.owner?.full_name || p.owner?.email || 'Unassigned'}
+                  {p.site_location || 'No site set'} · {p.install_company || 'No firm booked'}
                 </div>
               </div>
               <div className="count home-overdue">{formatDate(p.install_date)}</div>
@@ -160,61 +181,20 @@ export default async function ProjectSchedulePage({ searchParams }) {
         </div>
       )}
 
-      <div className="panel" style={{ padding: '12px 16px' }}>
-        <div className="schedule-nav">
-          <a className="btn btn-ghost" href={navHref(offset - 1)}>&larr; Earlier</a>
-          <div className="schedule-range">
-            {formatDate(windowStart)} &ndash; {formatDate(weeks[weeks.length - 1].end)}
-            {offset !== 0 && <a className="schedule-today" href={navHref(0)}>Back to today</a>}
-          </div>
-          <a className="btn btn-ghost" href={navHref(offset + 1)}>Later &rarr;</a>
-        </div>
+      {error && (
+        <div className="panel"><p className="error-text">Could not load the calendar: {error.message}</p></div>
+      )}
 
-        {error && <p className="error-text">Could not load the schedule: {error.message}</p>}
-
-        {weeks.map((w) => {
-          const inWeek = rows.filter((p) => p.install_date >= w.start && p.install_date <= w.end);
-          const wScreens = screenTotals(inWeek);
-          const wCrew = engineerDays(inWeek.flatMap((p) => surveysByProject[p.id] || []));
-          const isThisWeek = today >= w.start && today <= w.end;
-          return (
-            <div className={`schedule-week${isThisWeek ? ' current' : ''}`} key={w.key}>
-              <div className="schedule-week-head">
-                <span className="schedule-week-label">
-                  Week of {formatDate(w.start)}
-                  {isThisWeek && <span className="schedule-now">This week</span>}
-                </span>
-                {inWeek.length > 0 && (
-                  <span className="schedule-week-totals">
-                    {inWeek.length} install{inWeek.length === 1 ? '' : 's'} · {wScreens.total} screen{wScreens.total === 1 ? '' : 's'}
-                    {wCrew.total > 0 ? ` · ${wCrew.total} engineer-days` : ''}
-                  </span>
-                )}
-              </div>
-              {inWeek.length === 0 && <div className="schedule-empty">Nothing booked</div>}
-              {inWeek.map((p) => (
-                <a className="sub-row" key={p.id} href={projectHref(p.id, '/projects/schedule', params)}>
-                  <div>
-                    <div className="site">
-                      {p.title}
-                      {p.clients?.name ? <span className="client-badge">{p.clients.name}</span> : null}
-                    </div>
-                    <div className="meta">
-                      {formatDate(p.install_date)} · {p.site_location || 'No site set'} · {p.owner?.full_name || p.owner?.email || 'Unassigned'}
-                    </div>
-                  </div>
-                  <div className="count">
-                    <span className={`status-pill status-${statusTone(p.status)}`}>{statusLabel(p.status)}</span>
-                    <span className="schedule-screens">
-                      {p.screen_count == null ? 'No estimate' : `${p.screen_count} screen${p.screen_count === 1 ? '' : 's'}`}
-                    </span>
-                  </div>
-                </a>
-              ))}
-            </div>
-          );
-        })}
-      </div>
+      {!error && (
+        <InstallCalendar
+          projects={rows}
+          view={view}
+          anchor={anchor}
+          basePath="/projects/schedule"
+          params={params}
+          today={today}
+        />
+      )}
     </main>
   );
 }

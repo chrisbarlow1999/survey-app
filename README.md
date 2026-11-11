@@ -302,6 +302,12 @@ hand-synced copies.
     Internal staff only, like the rest of Menus; client accounts raising their
     own requests needs its own policies and isn't in here. The venue's Changes
     tab says so until it's run.
+48. Also run `supabase/041_install_scheduling.sql` — adds `install_company`,
+    `install_start_time` and `install_end_time` to projects, so the schedule
+    can be a calendar with a row per engineering firm. The firm here is who
+    is *booked*, set in advance by a PM — distinct from `engineer_company` on
+    a submitted form, which is who actually attended. Times are optional:
+    installs already booked with a date and no time show as all-day.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens

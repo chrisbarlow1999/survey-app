@@ -8,6 +8,7 @@ import { formatDate, formatDateTime } from '../lib/formatDate';
 import { PROJECT_STATUSES, PROJECT_PRIORITIES, statusLabel, statusTone, priorityLabel } from '../lib/projectStatus';
 import { screenLabel } from '../lib/screenCount';
 import { formatGBP } from '../lib/money';
+import { COMPANY_OPTIONS, OTHER_COMPANY } from '../lib/engineerCompanies';
 
 // Planner-style editing: change a field in place, it saves, no Edit button and
 // no separate page. The full form still exists for creating a project and for
@@ -30,6 +31,11 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     priority: project.priority || 'normal',
     due_date: project.due_date || '',
     install_date: project.install_date || '',
+    // Who is booked to do it, and when. Separate from the engineer_company
+    // recorded on a submitted form, which is who actually turned up.
+    install_company: project.install_company || '',
+    install_start_time: (project.install_start_time || '').slice(0, 5),
+    install_end_time: (project.install_end_time || '').slice(0, 5),
     // Kept as '' rather than 0 when unset — see lib/screenCount.js. An empty
     // box means nobody has estimated it, which the pipeline figure reports
     // separately from a project that genuinely needs no screens.
@@ -70,6 +76,9 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     // against, so "who moved it and when" is a real question later.
     if (key === 'install_date') {
       return { action: 'Install date changed', detail: `${from ? formatDate(from) : 'Not booked'} → ${to ? formatDate(to) : 'Not booked'}` };
+    }
+    if (key === 'install_company') {
+      return { action: 'Install firm changed', detail: `${from || 'Nobody'} → ${to || 'Nobody'}` };
     }
     if (key === 'client_id') {
       return { action: 'Client changed', detail: `${clientName(from)} → ${clientName(to)}` };
@@ -142,18 +151,27 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     setEditingKey(null);
     // Optimistic: the field shows the new value straight away and rolls back if
     // the write is refused.
-    setValues((v) => ({ ...v, [key]: value }));
+    setValues((v) => ({
+      ...v,
+      [key]: value,
+      ...(key === 'install_date' && !value ? { install_start_time: '', install_end_time: '' } : {}),
+    }));
 
-    const nullable = ['reference', 'site_location', 'address', 'description', 'due_date', 'install_date', 'owner_id', 'requested_by', 'requester_email', 'screen_count', 'value_gbp'];
+    const nullable = ['reference', 'site_location', 'address', 'description', 'due_date', 'install_date', 'install_company', 'install_start_time', 'install_end_time', 'owner_id', 'requested_by', 'requester_email', 'screen_count', 'value_gbp'];
     // screen_count is an integer column, so a cleared box has to be written as
     // null. Sending '' would be rejected outright, and sending 0 would claim
     // the project needs no screens.
     const toWrite = (key === 'screen_count' || key === 'value_gbp')
       ? (value === '' ? null : Number(value))
       : (nullable.includes(key) ? (value || null) : value);
+    const patch = { [key]: toWrite };
+    if (key === 'install_date' && !toWrite) {
+      patch.install_start_time = null;
+      patch.install_end_time = null;
+    }
     const { error: updErr } = await supabase
       .from('projects')
-      .update({ [key]: toWrite })
+      .update(patch)
       .eq('id', project.id);
 
     if (updErr) {
@@ -376,6 +394,40 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
             />
           ) : (
             <div className="v">{values.install_date ? formatDate(values.install_date) : '—'}</div>
+          )}
+        </div>
+        <SelectField
+          label="Install Firm"
+          fieldKey="install_company"
+          options={[{ value: '', label: 'Nobody booked' }, ...COMPANY_OPTIONS.filter((c) => c !== OTHER_COMPANY).map((c) => ({ value: c, label: c }))]}
+          render={(v) => v || 'Nobody booked'}
+        />
+        {/* Only offered once there's a date: migration 041 refuses a time with
+            no day to sit on, and the calendar would have nowhere to put it. */}
+        <div className={`kv inline-kv${savingKey === 'install_start_time' ? ' saving' : ''}`}>
+          <div className="k">Install Start</div>
+          {canEdit && values.install_date ? (
+            <input
+              className="inline-select"
+              type="time"
+              value={values.install_start_time || ''}
+              onChange={(e) => save('install_start_time', e.target.value)}
+            />
+          ) : (
+            <div className="v">{values.install_start_time || (values.install_date ? 'All day' : '—')}</div>
+          )}
+        </div>
+        <div className={`kv inline-kv${savingKey === 'install_end_time' ? ' saving' : ''}`}>
+          <div className="k">Install Finish</div>
+          {canEdit && values.install_date ? (
+            <input
+              className="inline-select"
+              type="time"
+              value={values.install_end_time || ''}
+              onChange={(e) => save('install_end_time', e.target.value)}
+            />
+          ) : (
+            <div className="v">{values.install_end_time || '—'}</div>
           )}
         </div>
         <TextField label="Reference" fieldKey="reference" placeholder="Add a job number…" />
