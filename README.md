@@ -308,6 +308,11 @@ hand-synced copies.
     is *booked*, set in advance by a PM — distinct from `engineer_company` on
     a submitted form, which is who actually attended. Times are optional:
     installs already booked with a date and no time show as all-day.
+49. Also run `supabase/042_client_events.sql` — adds `event_venues` (the
+    watch list), `venue_events` and `event_ai_runs`, behind `/events`. Every
+    AI-drafted event lands as `suggested` and counts towards nothing until a
+    person confirms it. The draft route also needs `ANTHROPIC_API_KEY` set;
+    without it the page still works and events can be added by hand.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
