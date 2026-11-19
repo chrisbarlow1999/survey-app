@@ -1662,5 +1662,6 @@ a.attachment-name:hover{text-decoration:underline;}
 .ss-review-title{font-weight:600;font-size:14px;}
 .ss-review-actions{display:flex;gap:8px;}
 
+.ss-detour{display:flex;justify-content:center;margin:0 0 10px;}
 .ss-nav{display:flex;justify-content:space-between;gap:10px;margin:4px 0 32px;}
 .ss-nav .btn{min-width:120px;min-height:44px;}

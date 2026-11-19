@@ -126,6 +126,13 @@ export default function SelfSurveyPage({ params }) {
   ];
   const current = pages[Math.min(page, pages.length - 1)];
 
+  // Set while a location is open from the summary page ("+ Add another
+  // location" or "Edit"), so Back and Cancel can return there directly.
+  const [detour, setDetour] = useState(null);
+  useEffect(() => {
+    if (current.kind === 'review' && detour) setDetour(null);
+  }, [current.kind, detour]);
+
   function updateArea(ai, patch) {
     setAreas((list) => list.map((a, i) => (i === ai ? { ...a, ...patch } : a)));
   }
@@ -166,17 +173,58 @@ export default function SelfSurveyPage({ params }) {
   }
   function goBack() {
     setError('');
+    // Back from the first step of a location opened from the summary returns
+    // to the summary, rather than to the end of the previous location.
+    if (detour && current.kind === 'area' && areas[current.ai]?.id === detour.areaId && current.step === AREA_STEPS[0]) {
+      cancelDetour();
+      return;
+    }
     setPage((p) => Math.max(p - 1, 0));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   function firstPageOfArea(ai) {
     return 1 + ai * AREA_STEPS.length;
   }
+  function reviewPage(areaCount) {
+    return 1 + areaCount * AREA_STEPS.length;
+  }
   function addArea() {
     const ai = areas.length;
-    setAreas((list) => [...list, freshSelfArea()]);
+    const area = freshSelfArea();
+    setAreas((list) => [...list, area]);
+    setDetour({ mode: 'add', areaId: area.id });
     setError('');
     setPage(firstPageOfArea(ai));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  function editArea(ai) {
+    setDetour({ mode: 'edit', areaId: areas[ai].id });
+    setError('');
+    setPage(firstPageOfArea(ai));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  // Back to the summary from a location opened there. A location that was
+  // being added is thrown away; one being edited keeps its changes (anything
+  // left incomplete is flagged on the summary).
+  function cancelDetour() {
+    if (!detour) return;
+    if (detour.mode === 'add') {
+      const a = areas.find((x) => x.id === detour.areaId);
+      const started = a && (a.name.trim() || Object.keys(a.photos).length > 0);
+      if (started && !confirm("Discard this location? Anything you've entered for it will be lost.")) return;
+    }
+    leaveDetour();
+  }
+  function leaveDetour() {
+    if (!detour) return;
+    let count = areas.length;
+    if (detour.mode === 'add') {
+      setAreas((list) => list.filter((a) => a.id !== detour.areaId));
+      count -= 1;
+    }
+    setDetour(null);
+    setError('');
+    setPage(reviewPage(count));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   function removeArea(ai) {
@@ -487,7 +535,7 @@ export default function SelfSurveyPage({ params }) {
                   {problems.length > 0 && <div className="error-text" style={{ margin: '4px 0 0' }}>{problems[0]}</div>}
                 </div>
                 <div className="ss-review-actions">
-                  <button type="button" className="btn btn-ghost" onClick={() => { setError(''); setPage(firstPageOfArea(ai)); }}>Edit</button>
+                  <button type="button" className="btn btn-ghost" onClick={() => editArea(ai)}>Edit</button>
                   {areas.length > 1 && (
                     <button type="button" className="btn btn-danger" onClick={() => removeArea(ai)}>Remove</button>
                   )}
@@ -504,6 +552,18 @@ export default function SelfSurveyPage({ params }) {
       )}
 
       {error && <p className="error-text" role="alert">{error}</p>}
+
+      {detour && current.kind === 'area' && areas[current.ai]?.id === detour.areaId && (
+        <div className="ss-detour">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={cancelDetour}
+          >
+            {detour.mode === 'add' ? "Cancel — don't add this location" : 'Back to summary'}
+          </button>
+        </div>
+      )}
 
       <div className="ss-nav">
         {page > 0 ? (
