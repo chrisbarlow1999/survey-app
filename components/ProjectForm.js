@@ -122,6 +122,9 @@ export function ProjectForm({ clients, owners, templates, actorName, userId }) {
             due_date: t.due_offset_days == null
               ? null
               : new Date(Date.now() + t.due_offset_days * 86400000).toISOString().slice(0, 10),
+            // Present once migration 043 has run; omitted before, so the
+            // insert doesn't name a column that isn't there.
+            ...(t.client_visible !== undefined ? { client_visible: Boolean(t.client_visible) } : {}),
           }));
           const { error: taskErr } = await supabase.from('project_tasks').insert(rows);
           if (taskErr) console.error(taskErr);

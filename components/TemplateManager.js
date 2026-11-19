@@ -142,6 +142,24 @@ export function TemplateManager({ templates, clients, owners }) {
     router.refresh();
   }
 
+  // Whether projects made from this template show the task on the client's
+  // tracking page. Copies onto the project task; changing it here later
+  // doesn't touch projects already made.
+  async function toggleTaskVisible(task) {
+    setBusy(true);
+    const { error: updErr } = await supabase
+      .from('project_template_tasks')
+      .update({ client_visible: !task.client_visible })
+      .eq('id', task.id);
+    setBusy(false);
+    if (updErr) {
+      console.error(updErr);
+      setError('Could not change that task.');
+      return;
+    }
+    router.refresh();
+  }
+
   async function removeTask(task) {
     setBusy(true);
     const { error: delErr } = await supabase.from('project_template_tasks').delete().eq('id', task.id);
@@ -300,6 +318,18 @@ export function TemplateManager({ templates, clients, owners }) {
                           <span className="template-task-due">
                             due +{task.due_offset_days} day{task.due_offset_days === 1 ? '' : 's'}
                           </span>
+                        )}
+                        {task.client_visible !== undefined && (
+                          <button
+                            type="button"
+                            className={`task-visibility${task.client_visible ? ' on' : ''}`}
+                            onClick={() => toggleTaskVisible(task)}
+                            disabled={busy}
+                            aria-pressed={Boolean(task.client_visible)}
+                            title={task.client_visible ? 'Shown on the client tracking page — click to hide' : 'Internal only — click to show on the client tracking page'}
+                          >
+                            {task.client_visible ? 'Client sees' : 'Internal'}
+                          </button>
                         )}
                         <button type="button" onClick={() => removeTask(task)} disabled={busy}>Remove</button>
                       </li>

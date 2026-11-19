@@ -58,6 +58,7 @@ export function DuplicateProjectButton({ project, tasks, actorName }) {
       project_id: data.id,
       title: t.title,
       position: i,
+      ...(t.client_visible !== undefined ? { client_visible: Boolean(t.client_visible) } : {}),
     }));
     if (rows.length) {
       const { error: taskErr } = await supabase.from('project_tasks').insert(rows);

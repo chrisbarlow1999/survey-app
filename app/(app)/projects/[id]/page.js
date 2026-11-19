@@ -10,6 +10,7 @@ import { ProjectAttachments } from '../../../../components/ProjectAttachments';
 import { parseReturnHref, backLabel } from '../../../../lib/projectBackLink';
 import { surveyInclusion, screenCountOf } from '../../../../lib/surveyScreens';
 import { SurveyCountPanel } from '../../../../components/SurveyCountPanel';
+import { ProjectClientPanel } from '../../../../components/ProjectClientPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +65,9 @@ export default async function ProjectPage({ params, searchParams }) {
     // locations comes along so the project can show what was actually
     // surveyed next to the PM's forecast — the two drifting apart is the
     // thing worth noticing.
-    supabase.from('surveys').select('id, project_id, site_location, survey_date, submitted_at, counts_in_totals, locations').eq('project_id', id).is('archived_at', null),
+    // '*' rather than a column list so survey_kind (migration 043) comes
+    // through when it exists without breaking this page before it does.
+    supabase.from('surveys').select('*').eq('project_id', id).is('archived_at', null),
     supabase.from('installations').select('id, site_location, install_date').eq('project_id', id).is('archived_at', null),
     supabase.from('visits').select('id, site_location, visit_date').eq('project_id', id).is('archived_at', null),
     supabase.from('project_notes').select('*').eq('project_id', id).order('created_at', { ascending: true }),
@@ -74,6 +77,13 @@ export default async function ProjectPage({ params, searchParams }) {
 
   const attachments = await Promise.all(
     (project.attachments || []).map(async (a) => {
+      const { data } = await supabase.storage.from('survey-photos').createSignedUrl(a.path, 60 * 60);
+      return { ...a, url: data?.signedUrl || null };
+    })
+  );
+
+  const ramsFiles = await Promise.all(
+    (project.rams_files || []).map(async (a) => {
       const { data } = await supabase.storage.from('survey-photos').createSignedUrl(a.path, 60 * 60);
       return { ...a, url: data?.signedUrl || null };
     })
@@ -92,7 +102,7 @@ export default async function ProjectPage({ params, searchParams }) {
   const linkedError = surveysError || installsError || visitsError;
 
   const linked = [
-    ...(surveys || []).map((r) => ({ ...r, kind: 'Survey', href: `/dashboard/${r.id}`, date: r.survey_date })),
+    ...(surveys || []).map((r) => ({ ...r, kind: r.survey_kind === 'self' ? 'Self survey' : 'Survey', href: `/dashboard/${r.id}`, date: r.survey_date })),
     ...(installations || []).map((r) => ({ ...r, kind: 'Install', href: `/installations/${r.id}`, date: r.install_date })),
     ...(visits || []).map((r) => ({ ...r, kind: 'Visit', href: `/visits/${r.id}`, date: r.visit_date })),
   ];
@@ -141,6 +151,13 @@ export default async function ProjectPage({ params, searchParams }) {
           readOnly={!canEdit}
         />
       )}
+
+      <ProjectClientPanel
+        project={project}
+        ramsFiles={ramsFiles}
+        actorName={actorName}
+        readOnly={!canEdit}
+      />
 
       <ProjectAttachments
         projectId={project.id}

@@ -6,6 +6,11 @@ import { AttachmentPicker } from '../../../../components/AttachmentPicker';
 import { uploadAttachments, newAttachmentItems } from '../../../../lib/uploadAttachments';
 import { DraftBanner } from '../../../../components/DraftBanner';
 import { loadDraft, clearDraft, useDraftAutosave } from '../../../../lib/formDraft';
+import { INTAKE_QUESTIONS, answersToStore } from '../../../../lib/intakeQuestions';
+import { IntakeQuestionFields } from '../../../../components/IntakeQuestionFields';
+import { YesNo } from '../../../../components/YesNo';
+import { CopyLinkField } from '../../../../components/CopyLinkField';
+import { withinSelfSurveyWindow, trackingPath, SELF_SURVEY_WINDOW_DAYS } from '../../../../lib/clientTracking';
 
 // The client-facing request form. One shared set of fields for every client —
 // the slug in the URL only decides which client the project lands against, and
@@ -24,10 +29,18 @@ export default function ClientRequestPage({ params }) {
     title: '', siteLocation: '', address: '', description: '',
     requestedBy: '', requesterEmail: '', dueDate: '', screenCount: '',
   });
+  // Branching questions (lib/intakeQuestions.js), stored flat.
+  const [answers, setAnswers] = useState({});
+  // 'Yes' | 'No' | '' — '' saves as null ("not specified").
+  const [rams, setRams] = useState('');
   const [attachments, setAttachments] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  // The private link to this request's tracking page. Null after a bot-trap
+  // "success", which never created anything to track.
+  const [trackingToken, setTrackingToken] = useState(null);
+  const [submittedDue, setSubmittedDue] = useState('');
   const [draft, setDraft] = useState(null);
 
   // Bot deterrents. Both live in the browser and a script hitting PostgREST
@@ -53,10 +66,12 @@ export default function ClientRequestPage({ params }) {
 
   useEffect(() => { setDraft(loadDraft(draftKey)); }, [draftKey]);
 
-  useDraftAutosave(draftKey, { form }, !done);
+  useDraftAutosave(draftKey, { form, answers, rams }, !done);
 
   function restoreDraft() {
     setForm((f) => ({ ...f, ...draft.data.form }));
+    if (draft.data.answers) setAnswers(draft.data.answers);
+    if (typeof draft.data.rams === 'string') setRams(draft.data.rams);
     setDraft(null);
   }
   function discardDraft() {
@@ -85,7 +100,13 @@ export default function ClientRequestPage({ params }) {
     setSubmitting(true);
     try {
       const savedAttachments = await uploadAttachments(supabase, attachments);
+      // Made here rather than by the database: an anonymous submitter can't
+      // read the row back, so this is the only way to know the link to show.
+      const token = crypto.randomUUID();
       const { error: insertErr } = await supabase.from('projects').insert({
+        tracking_token: token,
+        intake_answers: answersToStore(INTAKE_QUESTIONS, answers),
+        rams_required: rams === 'Yes' ? true : rams === 'No' ? false : null,
         client_id: client.id,
         title: form.title,
         site_location: form.siteLocation || null,
@@ -101,6 +122,8 @@ export default function ClientRequestPage({ params }) {
       });
       if (insertErr) throw insertErr;
       clearDraft(draftKey);
+      setTrackingToken(token);
+      setSubmittedDue(form.dueDate);
       setDone(true);
     } catch (err) {
       console.error(err);
@@ -130,12 +153,45 @@ export default function ClientRequestPage({ params }) {
   }
 
   if (done) {
+    const offerSelfSurvey = trackingToken && withinSelfSurveyWindow(submittedDue);
     return (
       <main>
         <div className="panel success-panel">
-          <h2>Request sent</h2>
-          <p className="hint">Thanks — this has gone through to the {client.name} team, who'll pick it up from here.</p>
-          <button className="btn btn-ghost" onClick={() => window.location.reload()}>Send another request</button>
+          <h2>Thank you — your request has been sent</h2>
+          <p className="hint">
+            It&apos;s gone through to the {client.name} team, who&apos;ll pick it up from here.
+          </p>
+          {trackingToken && (
+            <>
+              <div className="tracking-callout">
+                <div className="tracking-callout-title">Save this link</div>
+                <p className="hint" style={{ margin: '0 0 10px' }}>
+                  It&apos;s your private page for this job: progress, key dates, documents and anything we
+                  need from you. Bookmark it or copy it somewhere safe — it isn&apos;t sent anywhere else, and
+                  anyone with the link can see the page.
+                </p>
+                <CopyLinkField path={trackingPath(trackingToken)} />
+              </div>
+              {offerSelfSurvey && (
+                <div className="tracking-callout tracking-callout-urgent">
+                  <div className="tracking-callout-title">Your date is within {SELF_SURVEY_WINDOW_DAYS / 7} weeks</div>
+                  <p className="hint" style={{ margin: '0 0 10px' }}>
+                    To save time, you can survey the site yourself instead of waiting for an engineer visit.
+                    We&apos;ll guide you through each photo and measurement — it takes about 15 minutes per
+                    screen location, on your phone.
+                  </p>
+                  <a className="btn btn-primary" href={`${trackingPath(trackingToken)}/self-survey`}>Start self survey</a>
+                </div>
+              )}
+              <div className="actions-row" style={{ justifyContent: 'flex-start', marginBottom: 0, marginTop: 14 }}>
+                <a className="btn btn-primary" href={trackingPath(trackingToken)}>Go to your project page</a>
+                <button className="btn btn-ghost" onClick={() => window.location.reload()}>Send another request</button>
+              </div>
+            </>
+          )}
+          {!trackingToken && (
+            <button className="btn btn-ghost" onClick={() => window.location.reload()}>Send another request</button>
+          )}
         </div>
       </main>
     );
@@ -209,6 +265,28 @@ export default function ClientRequestPage({ params }) {
               <label>Details</label>
               <textarea value={form.description} onChange={(e) => setField('description', e.target.value)} placeholder="Anything useful — how many screens, where they'd go, any deadlines." />
             </div>
+          </div>
+          {withinSelfSurveyWindow(form.dueDate) && (
+            <p className="hint tracking-inline-note">
+              That&apos;s within {SELF_SURVEY_WINDOW_DAYS / 7} weeks. Once you send this, you&apos;ll be able
+              to survey the site yourself so we can move faster — we&apos;ll show you how.
+            </p>
+          )}
+        </div>
+
+        <div className="panel">
+          <h2>Site Access</h2>
+          <IntakeQuestionFields
+            questions={INTAKE_QUESTIONS}
+            answers={answers}
+            onChange={(key, value) => setAnswers((a) => ({ ...a, [key]: value }))}
+          />
+          <div className="intake-question">
+            <label className="intake-question-label">Do you need RAMS (risk assessment and method statement) from us?</label>
+            <p className="hint intake-question-hint">
+              If yes, we&apos;ll prepare them and add them to your project page for you to download.
+            </p>
+            <YesNo value={rams} onChange={setRams} ariaLabel="RAMS required" />
           </div>
         </div>
 

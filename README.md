@@ -80,6 +80,10 @@ survey, and the report a client receives still says so.
 - `/request/<slug>` — a client's own public request form. No account needed. Creates
   a project against that client with status "New Request". Links are listed, shared
   and switched on under Admin → Request Links.
+- `/track/<token>` — a client's private page for one project: stage, dates,
+  tasks ticked for the client, RAMS, approvals waiting on them, and (when the
+  date is within three weeks) the guided self survey at
+  `/track/<token>/self-survey`. No account needed. See **Client tracking**.
 - `/admin/clients` — add/rename/delete clients, set each one's notification inbox.
 - `/admin/request-links` — every client's request-form link in one place, with
   copy/preview buttons, an on/off switch, and how many requests each has brought in.
@@ -313,6 +317,18 @@ hand-synced copies.
     AI-drafted event lands as `suggested` and counts towards nothing until a
     person confirms it. The draft route also needs `ANTHROPIC_API_KEY` set;
     without it the page still works and events can be added by hand.
+
+50. Also run `supabase/043_client_tracking.sql` — **before deploying the code
+    that goes with it**, because the request form now sends columns this adds
+    and will fail until it's run. Adds the client side of a project: the
+    request form's site-access questions (`intake_answers`), RAMS
+    (`rams_required`, `rams_files`), a private tracking link per project
+    (`tracking_token`) with a snapshot of what the client submitted
+    (`intake_submission`), a "show to client" flag on tasks and template
+    tasks, and client self surveys (`surveys.survey_kind`,
+    `submit_self_survey()`). See **Client tracking** below. RAMS and request
+    files on the tracking page are served through `/api/tracking-file`, which
+    needs `SUPABASE_SERVICE_ROLE_KEY` like the approval photos do.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
@@ -751,6 +767,54 @@ survey before signing, so a token can't be used to read the rest of the bucket.
 Without the key that route returns 503 and the photos simply don't appear; the
 rest of the page still works. The key is a copy-paste from Supabase → Settings →
 API, unlike the email blocker which needs DNS.
+
+## Client tracking
+
+What a client gets after raising a request, and what the team sees of it.
+
+**Branching questions.** The request form asks whether the site is secure or
+restricted access; a Yes opens follow-ups (induction, escort, ID/clearance —
+which opens its own follow-up — access hours, parking, who to ask for). The
+questions are data in `lib/intakeQuestions.js`: add or reword one there and the
+form, the project page and the tracking page all pick it up. Answers to
+questions that end up hidden (Yes, then changed to No) aren't saved. Never
+reuse a question's `key` for a different question — old answers are shown
+against whatever wording the key has now.
+
+**RAMS.** The form asks whether RAMS are needed. Yes flags the project's
+**Client View** panel with "RAMS needed" until a file is uploaded there; No
+leaves the upload optional. RAMS files are kept apart from Attachments because
+the client can download them from their tracking page, and Attachments can't
+be seen by the client.
+
+**The thank-you page and tracking link.** Submitting a request shows a private
+link (`/track/<token>`) to bookmark or copy. Nothing is emailed yet — that waits
+on the same Resend domain verification as the other notifications. Every
+project has a link, including manual ones: copy it from the Client View panel.
+The page shows the stage (in client wording, from `lib/clientTracking.js`), key
+dates, progress from tasks ticked **Client sees**, anything waiting on them
+(self survey, survey approvals, quotes), RAMS, and what they submitted.
+
+It never shows notes, activity, owner, priority, value, the booked firm, or
+tasks marked **Internal** (the default — nothing existing became visible when
+043 ran). "What you sent us" comes from a snapshot taken as the request
+arrived, not the live description and attachments, which PMs edit and templates
+add internal files to. Requests from before 043 show text fields only, with no
+files. Template tasks can be ticked **Client sees** under Admin → Templates;
+the tick is copied onto projects made from the template.
+
+**Self survey.** When the Needed By date is within three weeks of the request,
+the thank-you page and tracking page offer a guided self survey: per screen
+location, a wide photo, wall type plus a close-up, measurements, the nearest
+socket, connectivity, obstructions and screen count. Each step has an example
+and tips (`lib/selfSurveyGuide.js`). The examples are line drawings for now —
+put real photos in `public/self-survey/` and set `exampleImage` on a step.
+The result is an ordinary survey (`survey_kind = 'self'`, engineer company
+"Client self survey"), already linked to the project, so it appears in Site
+Records, quotes and the screens pipeline, and is flagged on the report. Model,
+mount type and resourcing are left blank for a PM to fill in via Edit Survey.
+The three-week rule is checked in the browser and again in
+`project_self_survey_eligible()`; to change the window, change both.
 
 ## Request form abuse protection
 

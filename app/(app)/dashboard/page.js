@@ -28,7 +28,9 @@ export default async function DashboardPage({ searchParams }) {
   let query = supabase
     .from('surveys')
     .select(
-      'id, site_location, engineer_first, engineer_last, survey_date, submitted_at, locations, archived_at, client_id, clients(id, name)',
+      // engineer_company rather than survey_kind to spot self surveys: it has
+      // existed since 035, so this list keeps working before 043 is run.
+      'id, site_location, engineer_first, engineer_last, engineer_company, survey_date, submitted_at, locations, archived_at, client_id, clients(id, name)',
       { count: 'exact' }
     );
 
@@ -100,6 +102,7 @@ export default async function DashboardPage({ searchParams }) {
                 {s.site_location || 'Untitled site'}
                 {s.clients?.name ? <span className="client-badge">{s.clients.name}</span> : null}
                 {s.archived_at ? <span className="client-badge archived-badge">Archived</span> : null}
+                {s.engineer_company === 'Client self survey' ? <span className="client-badge intake-badge">Self survey</span> : null}
               </div>
               <div className="meta">{s.engineer_first} {s.engineer_last} · {formatDate(s.survey_date)} · {formatDateTime(s.submitted_at)}</div>
             </div>

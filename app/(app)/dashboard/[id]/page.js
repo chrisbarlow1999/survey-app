@@ -13,6 +13,7 @@ import { SurveyApprovalPanel } from '../../../../components/SurveyApprovalPanel'
 import { CreateCostSheetButton } from '../../../../components/CreateCostSheetButton';
 import { costSheetLabel, costSheetTone } from '../../../../lib/costSheetStatus';
 import { formatGBP } from '../../../../lib/money';
+import { describeSelfSurveyArea } from '../../../../lib/selfSurveyGuide';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,14 +60,18 @@ export default async function ReportPage({ params }) {
           .createSignedUrl(loc.photo_path, 60 * 60); // 1 hour
         photoUrl = data?.signedUrl || null;
       }
-      const additionalPhotoUrls = (
+      // Paired with the path so a self survey can caption each photo
+      // ("Nearest power socket") from self_survey.photo_labels.
+      const additionalPhotos = (
         await Promise.all(
-          (loc.additional_photos || []).map((path) =>
-            supabase.storage.from('survey-photos').createSignedUrl(path, 60 * 60)
-          )
+          (loc.additional_photos || []).map(async (path) => {
+            const { data } = await supabase.storage.from('survey-photos').createSignedUrl(path, 60 * 60);
+            return { path, url: data?.signedUrl || null };
+          })
         )
-      ).map((r) => r.data?.signedUrl).filter(Boolean);
-      return { ...loc, photoUrl, additionalPhotoUrls };
+      ).filter((p) => p.url);
+      const additionalPhotoUrls = additionalPhotos.map((p) => p.url);
+      return { ...loc, photoUrl, additionalPhotoUrls, additionalPhotos };
     })
   );
 
@@ -111,8 +116,16 @@ export default async function ReportPage({ params }) {
         </div>
       )}
 
+      {survey.survey_kind === 'self' && (
+        <div className="self-survey-banner no-print">
+          <strong>Client self survey.</strong> Filled in by the client from their tracking link, not by an
+          engineer — measurements and wall types are their own. Check the photos before quoting or booking,
+          and fill in model, mount type and resourcing via Edit Survey.
+        </div>
+      )}
+
       <ReportCoverPage
-        title="Site Survey Report"
+        title={survey.survey_kind === 'self' ? 'Site Survey Report (client self survey)' : 'Site Survey Report'}
         siteName={survey.site_location}
         clientName={survey.clients?.name}
       />
@@ -263,15 +276,32 @@ export default async function ReportPage({ params }) {
                     ))}
                   </div>
                 )}
-                {area.additionalPhotoUrls && area.additionalPhotoUrls.length > 0 && (
+                {area.self_survey && (
+                  <div className="kv self-survey-details" style={{ borderColor: 'var(--caution)' }}>
+                    <div className="k">From the client&apos;s self survey</div>
+                    <dl className="intake-answer-list">
+                      {describeSelfSurveyArea(area.self_survey).map(([label, value]) => (
+                        <div className="intake-answer" key={label}>
+                          <dt>{label}</dt>
+                          <dd>{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                )}
+                {area.additionalPhotos && area.additionalPhotos.length > 0 && (
                   <>
                     <div className="k" style={{ marginTop: 14, marginBottom: 6 }}>Additional Photos</div>
                     <div className="additional-photos-grid">
-                      {area.additionalPhotoUrls.map((url, idx) => (
-                        <a href={url} target="_blank" rel="noreferrer" key={idx} className="additional-photo-thumb static">
-                          <img src={url} alt={`Additional photo ${idx + 1}`} />
-                        </a>
-                      ))}
+                      {area.additionalPhotos.map(({ path, url }, idx) => {
+                        const caption = area.self_survey?.photo_labels?.[path];
+                        return (
+                          <a href={url} target="_blank" rel="noreferrer" key={idx} className="additional-photo-thumb static" title={caption || undefined}>
+                            <img src={url} alt={caption || `Additional photo ${idx + 1}`} />
+                            {caption && <span className="photo-caption">{caption}</span>}
+                          </a>
+                        );
+                      })}
                     </div>
                   </>
                 )}

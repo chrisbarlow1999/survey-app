@@ -16,6 +16,7 @@ export function ProjectTaskList({ projectId, tasks, actorName, readOnly }) {
 
   const [newTitle, setNewTitle] = useState('');
   const [newDue, setNewDue] = useState('');
+  const [newVisible, setNewVisible] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
@@ -37,6 +38,8 @@ export function ProjectTaskList({ projectId, tasks, actorName, readOnly }) {
       title,
       due_date: newDue || null,
       position,
+      // Only sent when ticked, so adding tasks still works before migration 043.
+      ...(newVisible ? { client_visible: true } : {}),
     });
     if (insertErr) {
       console.error(insertErr);
@@ -47,6 +50,7 @@ export function ProjectTaskList({ projectId, tasks, actorName, readOnly }) {
     await logProjectActivity(supabase, { projectId, actorName, action: 'Task added', detail: title });
     setNewTitle('');
     setNewDue('');
+    setNewVisible(false);
     setAdding(false);
     router.refresh();
   }
@@ -72,6 +76,31 @@ export function ProjectTaskList({ projectId, tasks, actorName, readOnly }) {
       projectId,
       actorName,
       action: completing ? 'Task completed' : 'Task reopened',
+      detail: task.title,
+    });
+    setBusyId(null);
+    router.refresh();
+  }
+
+  // Whether this task appears on the client's tracking page.
+  async function toggleVisible(task) {
+    setBusyId(task.id);
+    setError('');
+    const showing = !task.client_visible;
+    const { error: updateErr } = await supabase
+      .from('project_tasks')
+      .update({ client_visible: showing })
+      .eq('id', task.id);
+    if (updateErr) {
+      console.error(updateErr);
+      setError('Could not change who can see that task.');
+      setBusyId(null);
+      return;
+    }
+    await logProjectActivity(supabase, {
+      projectId,
+      actorName,
+      action: showing ? 'Task shown to client' : 'Task hidden from client',
       detail: task.title,
     });
     setBusyId(null);
@@ -118,6 +147,19 @@ export function ProjectTaskList({ projectId, tasks, actorName, readOnly }) {
               : ''}
           </div>
         </div>
+        {/* Absent before migration 043 — no toggle until the column exists. */}
+        {task.client_visible !== undefined && (
+          <button
+            type="button"
+            className={`task-visibility${task.client_visible ? ' on' : ''}`}
+            onClick={() => toggleVisible(task)}
+            disabled={readOnly || busyId === task.id}
+            aria-pressed={Boolean(task.client_visible)}
+            title={task.client_visible ? 'Shown on the client tracking page — click to hide' : 'Internal only — click to show on the client tracking page'}
+          >
+            {task.client_visible ? 'Client sees' : 'Internal'}
+          </button>
+        )}
         {!readOnly && (
           <button
             type="button"
@@ -149,6 +191,10 @@ export function ProjectTaskList({ projectId, tasks, actorName, readOnly }) {
             placeholder="Add a task…"
           />
           <input type="date" min="2000-01-01" max="2100-12-31" value={newDue} onChange={(e) => setNewDue(e.target.value)} title="Due date" />
+          <label className="task-add-visible" title="Show this task on the client tracking page">
+            <input type="checkbox" checked={newVisible} onChange={(e) => setNewVisible(e.target.checked)} />
+            Show to client
+          </label>
           <button className="btn btn-primary" type="submit" disabled={adding || !newTitle.trim()}>
             {adding ? 'Adding…' : 'Add'}
           </button>

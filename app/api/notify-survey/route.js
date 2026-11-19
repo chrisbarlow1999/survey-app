@@ -23,11 +23,21 @@ export async function POST(request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    const { data: survey } = await supabaseAdmin
+    let { data: survey } = await supabaseAdmin
       .from('surveys')
-      .select('id, site_location, engineer_first, engineer_last, survey_date, clients(name, notification_email)')
+      .select('id, site_location, engineer_first, engineer_last, survey_date, survey_kind, clients(name, notification_email)')
       .eq('id', surveyId)
       .single();
+    // survey_kind arrives with migration 043. Before that, fall back to the
+    // original columns rather than skip every notification.
+    if (!survey) {
+      ({ data: survey } = await supabaseAdmin
+        .from('surveys')
+        .select('id, site_location, engineer_first, engineer_last, survey_date, clients(name, notification_email)')
+        .eq('id', surveyId)
+        .single());
+    }
+    const isSelf = survey?.survey_kind === 'self';
 
     const toEmail = survey?.clients?.notification_email;
     if (!survey || !toEmail) {
@@ -46,12 +56,12 @@ export async function POST(request) {
       body: JSON.stringify({
         from: process.env.NOTIFY_FROM_EMAIL || 'onboarding@resend.dev',
         to: toEmail,
-        subject: `New site survey — ${survey.site_location}${survey.clients?.name ? ` (${survey.clients.name})` : ''}`,
+        subject: `New ${isSelf ? 'client self survey' : 'site survey'} — ${survey.site_location}${survey.clients?.name ? ` (${survey.clients.name})` : ''}`,
         text: [
-          `A new site survey has been submitted${survey.clients?.name ? ` for ${survey.clients.name}` : ''}.`,
+          `A new ${isSelf ? 'client self survey' : 'site survey'} has been submitted${survey.clients?.name ? ` for ${survey.clients.name}` : ''}.`,
           '',
           `Site: ${survey.site_location}`,
-          `Engineer: ${survey.engineer_first} ${survey.engineer_last}`,
+          `${isSelf ? 'Submitted by' : 'Engineer'}: ${survey.engineer_first} ${isSelf && survey.engineer_last === '(self survey)' ? '' : survey.engineer_last}`.trim(),
           `Survey Date: ${survey.survey_date}`,
           reportLink ? `\nView it: ${reportLink}` : '',
         ].join('\n'),
