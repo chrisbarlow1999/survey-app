@@ -81,10 +81,16 @@ export default async function ProjectsTablePage({ searchParams }) {
   const rows = projects || [];
   let withTasks = rows;
   if (rows.length) {
-    const { data: tasks } = await supabase
-      .from('project_tasks')
-      .select('project_id, completed_at')
-      .in('project_id', rows.map((r) => r.id));
+    const ids = rows.map((r) => r.id);
+    const [{ data: tasks }, { data: siteRows }] = await Promise.all([
+      supabase.from('project_tasks').select('project_id, completed_at').in('project_id', ids),
+      // Projects with sites are booked site by site (migration 046), so the
+      // bulk install controls skip them. Errors before 044 — then nothing
+      // counts as having sites, which is true.
+      supabase.from('project_sites').select('project_id').in('project_id', ids),
+    ]);
+    const siteCount = {};
+    (siteRows || []).forEach((s) => { siteCount[s.project_id] = (siteCount[s.project_id] || 0) + 1; });
     const tally = {};
     (tasks || []).forEach((t) => {
       const e = tally[t.project_id] || { total: 0, done: 0 };
@@ -96,6 +102,7 @@ export default async function ProjectsTablePage({ searchParams }) {
       ...r,
       taskTotal: tally[r.id]?.total || 0,
       taskDone: tally[r.id]?.done || 0,
+      siteCount: siteCount[r.id] || 0,
     }));
   }
 

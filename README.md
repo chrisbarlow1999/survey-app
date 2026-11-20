@@ -82,8 +82,11 @@ survey, and the report a client receives still says so.
   and switched on under Admin → Request Links.
 - `/track/<token>` — a client's private page for one project: stage, dates,
   tasks ticked for the client, RAMS, approvals waiting on them, and (when the
-  date is within three weeks) the guided self survey at
-  `/track/<token>/self-survey`. No account needed. See **Client tracking**.
+  date is within three weeks) a self survey per site. No account needed. See
+  **Client tracking**.
+- `/self-survey/<token>` — one site's guided self survey, and nothing else. Made
+  to be forwarded to the site manager: it never reveals the tracking link,
+  other sites, quotes or documents.
 - `/admin/clients` — add/rename/delete clients, set each one's notification inbox.
 - `/admin/request-links` — every client's request-form link in one place, with
   copy/preview buttons, an on/off switch, and how many requests each has brought in.
@@ -337,6 +340,18 @@ hand-synced copies.
     hours, install preferences, access answers, RAMS, its own stage and
     install date), `surveys.project_site_id`, and updates the tracking page
     and self-survey functions to know about sites. See **Multi-site projects**.
+
+52. Also run `supabase/045_self_survey_links.sql` — gives every site (and
+    every project without sites) its own `self_survey_token`, behind
+    `/self-survey/<token>`: a link that opens that one site's self survey and
+    nothing else, so it can be forwarded to a site manager. Old
+    `/track/<token>/self-survey` links redirect to it.
+
+53. Also run `supabase/046_site_install_booking.sql` — install bookings per
+    site (date, firm, start, finish), the `install_jobs` view the schedule now
+    reads, and a trigger keeping a site-based project's own install fields in
+    step with its next booked site. Existing project bookings are copied onto
+    their sites. See **Multi-site projects**.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
@@ -824,6 +839,17 @@ mount type and resourcing are left blank for a PM to fill in via Edit Survey.
 The three-week rule is checked in the browser and again in
 `project_self_survey_eligible()`; to change the window, change both.
 
+**Sending it to the site manager.** Whoever holds the tracking link is often
+not the person who can survey the site. Each site therefore has its own
+self-survey link (`/self-survey/<token>`, migration 045). On the tracking page,
+each pending self survey offers **Start it myself** or **Send to site
+manager**, which shows that site's link to copy and an **Email** button that
+opens the viewer's own mail app with a ready-written message to the manager
+(nothing is sent by the app). The same link is on each site in the project
+page's Sites panel, for PMs to send directly. The link page shows the project
+title, client and that site's name and address, pre-fills the manager's name
+and phone, and has no way back to the tracker.
+
 ## Multi-site projects
 
 A rollout is one project with several **sites** — Saputo is the project; Leeds,
@@ -856,10 +882,26 @@ a site on the tracking page are assigned to that site automatically.
 wording), install date, details, access answers, RAMS to download, and a
 self-survey button per site when the date is within three weeks.
 
-**Not built yet:** per-site install dates don't appear on `/projects/schedule`
-(that still uses the project's install date), the board and table don't show a
-site count, and Duplicate deliberately doesn't copy sites — like site name and
-address, they're what makes the copy a different job.
+**Install bookings are per site** (migration 046). Each site card has its own
+date, firm, start and finish, always visible under the site's name; times
+unlock once there's a date. On a project with sites, the install fields at the
+top of the project page become a read-only summary — how many sites are booked,
+the next install and the date range — because the project's own
+`install_date`/firm/times are now maintained by the database from its next
+open site (or its last one, once all are done). That keeps the table, board and
+home page reading a sensible date without knowing about sites. Editing those
+project-level fields directly on a site-based project is refused by a trigger,
+and the table's bulk install controls skip such projects with a note.
+
+**The schedule** reads the `install_jobs` view: one job per booked site, plus
+one per project without sites, so a rollout's installs appear on their own
+days, in their own firm's lane, with their own times, each labelled with the
+site name. Engineer-days for a site job come from the surveys assigned to that
+site. "Install date has passed" and "Open, not yet booked" count per site.
+
+**Not built yet:** the board and table don't show a site count, and Duplicate
+deliberately doesn't copy sites — like site name and address, they're what
+makes the copy a different job.
 
 ## Request form abuse protection
 

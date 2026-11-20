@@ -9,6 +9,7 @@ import { PROJECT_STATUSES, PROJECT_PRIORITIES, statusLabel, statusTone, priority
 import { screenLabel } from '../lib/screenCount';
 import { formatGBP } from '../lib/money';
 import { COMPANY_OPTIONS, OTHER_COMPANY } from '../lib/engineerCompanies';
+import { formatTimeRange } from '../lib/installCalendar';
 
 // Planner-style editing: change a field in place, it saves, no Edit button and
 // no separate page. The full form still exists for creating a project and for
@@ -17,7 +18,37 @@ import { COMPANY_OPTIONS, OTHER_COMPANY } from '../lib/engineerCompanies';
 // Everything saves through one `save()` so the activity trail is written the
 // same way regardless of which field moved, and so a failure can roll the
 // display back rather than leaving the screen lying about what's stored.
-export function ProjectDetailsPanel({ project, clients, owners, actorName, canEdit, surveyedScreens = 0 }) {
+// For a project with sites: how many are booked, and the next one coming up.
+function InstallSummary({ sites }) {
+  const open = sites.filter((s) => s.status !== 'cancelled');
+  const booked = open.filter((s) => s.install_date);
+  const upcoming = booked
+    .filter((s) => s.status !== 'installed')
+    .sort((a, b) => a.install_date.localeCompare(b.install_date) || (a.install_start_time || '').localeCompare(b.install_start_time || ''));
+  const next = upcoming[0];
+  const dates = booked.map((s) => s.install_date).sort();
+  return (
+    <div className="kv install-summary" style={{ gridColumn: 'span 2' }}>
+      <div className="k">Installs · per site</div>
+      <div className="v">
+        {booked.length === 0
+          ? `None booked yet — set each site's date in Sites below`
+          : `${booked.length} of ${open.length} site${open.length === 1 ? '' : 's'} booked`}
+        {next && (
+          <div className="install-summary-next">
+            Next: {formatDate(next.install_date)} · {formatTimeRange(next.install_start_time, next.install_end_time)} · {next.site_name}
+            {next.install_company ? ` · ${next.install_company}` : ' · no firm booked'}
+          </div>
+        )}
+        {dates.length > 1 && (
+          <div className="install-summary-next">Runs {formatDate(dates[0])} – {formatDate(dates[dates.length - 1])}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ProjectDetailsPanel({ project, clients, owners, actorName, canEdit, surveyedScreens = 0, sites = [] }) {
   const supabase = createClient();
   const router = useRouter();
 
@@ -381,6 +412,11 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
             <div className="v">{formatGBP(values.value_gbp === '' ? null : values.value_gbp)}</div>
           )}
         </div>
+        {/* A project with sites is booked site by site (migration 046), in
+            the Sites panel. Its own install fields are then a summary kept in
+            step by the database, so they're shown, not edited, here. */}
+        {sites.length > 0 && <InstallSummary sites={sites} />}
+        {sites.length === 0 && (<>
         <div className={`kv inline-kv${savingKey === 'install_date' ? ' saving' : ''}`}>
           <div className="k" title="When engineers are booked to fit it. Separate from the client's requested deadline.">Install Date</div>
           {canEdit ? (
@@ -430,6 +466,7 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
             <div className="v">{values.install_end_time || '—'}</div>
           )}
         </div>
+        </>)}
         <TextField label="Reference" fieldKey="reference" placeholder="Add a job number…" />
         <TextField label="Site" fieldKey="site_location" placeholder="Add a site…" />
         <TextField label="Address" fieldKey="address" placeholder="Add an address…" multiline />

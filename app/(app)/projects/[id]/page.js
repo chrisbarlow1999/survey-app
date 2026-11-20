@@ -169,6 +169,7 @@ export default async function ProjectPage({ params, searchParams }) {
         actorName={actorName}
         canEdit={canEdit}
         surveyedScreens={surveyedScreens}
+        sites={sites}
       />
 
       {(surveys || []).length > 0 && (

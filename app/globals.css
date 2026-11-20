@@ -1705,6 +1705,29 @@ a.attachment-name:hover{text-decoration:underline;}
 .tracking-site-date{font-size:12.5px;color:var(--text-secondary);}
 .tracking-site-body{padding:4px 14px 14px;border-top:1px solid var(--border);}
 
+/* Per-site install booking (046) */
+.site-booking{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;padding:8px 14px 10px 44px;border-top:1px dashed var(--border);}
+.site-booking.read-only{align-items:center;font-size:13px;color:var(--text-secondary);}
+.site-booking-label{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;color:var(--text-tertiary);align-self:center;min-width:44px;}
+.site-booking.booked .site-booking-label{color:var(--accent);}
+.site-booking-field{display:flex;flex-direction:column;gap:3px;margin:0;}
+.site-booking-field > span{font-size:11.5px;color:var(--text-tertiary);}
+.site-booking-field input,.site-booking-field select{width:auto;min-width:0;padding-top:6px;padding-bottom:6px;}
+.site-booking-field input[type=time]{width:110px;}
+@media (max-width:640px){.site-booking{padding-left:14px;}}
+.install-summary .install-summary-next{font-size:13px;color:var(--text-secondary);margin-top:3px;}
+
+/* Forwardable self-survey links (045) */
+.tracking-action-stacked{flex-direction:column;align-items:stretch;}
+.tracking-action-stacked > div{flex:none;}
+.tracking-action-row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+.tracking-action-row > div:first-child{flex:1 1 260px;min-width:0;}
+.tracking-action-buttons{display:flex;gap:8px;flex-wrap:wrap;}
+.ss-share{margin-top:10px;}
+.ss-share-body{background:var(--surface-sunken);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;}
+.ss-share-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.ss-progress-site{font-size:13px;font-weight:600;color:var(--text-secondary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
 .ss-detour{display:flex;justify-content:center;margin:0 0 10px;}
 .ss-nav{display:flex;justify-content:space-between;gap:10px;margin:4px 0 32px;}
 .ss-nav .btn{min-width:120px;min-height:44px;}

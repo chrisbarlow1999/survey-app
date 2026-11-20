@@ -14,6 +14,9 @@ import {
 } from '../lib/siteStatus';
 import { MAX_ATTACHMENT_BYTES } from './AttachmentPicker';
 import { SiteDetailsFields } from './SiteDetailsFields';
+import { SelfSurveyShare } from './SelfSurveyShare';
+import { COMPANY_OPTIONS, OTHER_COMPANY } from '../lib/engineerCompanies';
+import { formatTimeRange } from '../lib/installCalendar';
 
 function siteToForm(site) {
   const f = freshSiteDetails();
@@ -47,6 +50,74 @@ function formToRow(f) {
     access_answers: answersToStore(INTAKE_QUESTIONS, f.access_answers || {}),
     rams_required: ramsFromForm(f.rams_required),
   };
+}
+
+function hhmm(t) {
+  return typeof t === 'string' ? t.slice(0, 5) : '';
+}
+
+// One site's install booking: day, firm, start, finish (migration 046). This
+// is what the schedule reads, so it's always on show rather than tucked inside
+// the site's details. Times only unlock once there's a day for them to sit on.
+function SiteBooking({ site, readOnly, busy, onSave }) {
+  const firms = COMPANY_OPTIONS.filter((c) => c !== OTHER_COMPANY);
+  const custom = site.install_company && !firms.includes(site.install_company);
+  if (readOnly) {
+    return (
+      <div className="site-booking read-only">
+        <span className="site-booking-label">Install</span>
+        <span>
+          {site.install_date
+            ? `${formatDate(site.install_date)} · ${formatTimeRange(site.install_start_time, site.install_end_time)} · ${site.install_company || 'No firm booked'}`
+            : 'Not booked'}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className={`site-booking${site.install_date ? ' booked' : ''}`}>
+      <span className="site-booking-label">Install</span>
+      <label className="site-booking-field">
+        <span>Date</span>
+        <input
+          type="date"
+          min="2000-01-01"
+          max="2100-12-31"
+          value={site.install_date || ''}
+          disabled={busy}
+          onChange={(e) => onSave(site, 'install_date', e.target.value || null)}
+        />
+      </label>
+      <label className="site-booking-field">
+        <span>Firm</span>
+        <select value={site.install_company || ''} disabled={busy} onChange={(e) => onSave(site, 'install_company', e.target.value || null)}>
+          <option value="">Nobody booked</option>
+          {custom && <option value={site.install_company}>{site.install_company}</option>}
+          {firms.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </label>
+      <label className="site-booking-field">
+        <span>Start</span>
+        <input
+          type="time"
+          value={hhmm(site.install_start_time)}
+          disabled={busy || !site.install_date}
+          title={site.install_date ? undefined : 'Set a date first'}
+          onChange={(e) => onSave(site, 'install_start_time', e.target.value || null)}
+        />
+      </label>
+      <label className="site-booking-field">
+        <span>Finish</span>
+        <input
+          type="time"
+          value={hhmm(site.install_end_time)}
+          disabled={busy || !site.install_date}
+          title={site.install_date ? undefined : 'Set a date first'}
+          onChange={(e) => onSave(site, 'install_end_time', e.target.value || null)}
+        />
+      </label>
+    </div>
+  );
 }
 
 function Detail({ label, children }) {
@@ -93,6 +164,27 @@ export function ProjectSitesPanel({ project, sites, surveysBySite, actorName, re
     return true;
   }
 
+  // Saves one booking field. Clearing the date clears the times with it — a
+  // time with no day is refused by the database (046) and means nothing on the
+  // schedule anyway.
+  async function bookSite(site, field, value) {
+    const name = site.site_name;
+    if (field === 'install_date') {
+      const values = value ? { install_date: value } : { install_date: null, install_start_time: null, install_end_time: null };
+      return patch(site, values, 'Site install date', `${name}: ${site.install_date ? formatDate(site.install_date) : 'Not booked'} → ${value ? formatDate(value) : 'Not booked'}`);
+    }
+    if (field === 'install_company') {
+      return patch(site, { install_company: value }, 'Site install firm', `${name}: ${site.install_company || 'Nobody'} → ${value || 'Nobody'}`);
+    }
+    const start = field === 'install_start_time' ? value : hhmm(site.install_start_time) || null;
+    const end = field === 'install_end_time' ? value : hhmm(site.install_end_time) || null;
+    if (start && end && end <= start) {
+      setError(`${name}: the finish time needs to be after the start time.`);
+      return false;
+    }
+    return patch(site, { [field]: value }, 'Site install time', `${name}: ${formatTimeRange(start, end)}`);
+  }
+
   function startAdd() {
     // The first site of a project that had none starts from the project's own
     // details, so converting a single-site job doesn't mean retyping it.
@@ -126,7 +218,16 @@ export function ProjectSitesPanel({ project, sites, surveysBySite, actorName, re
     setError('');
     if (editingId === 'new') {
       const position = sites.length ? Math.max(...sites.map((s) => s.position || 0)) + 1 : 0;
-      const { error: insErr } = await supabase.from('project_sites').insert({ ...row, project_id: project.id, position });
+      // The first site takes over the project's existing booking. Once a
+      // project has sites its own install fields follow them (046), so
+      // without this, adding a site would wipe the booking off the schedule.
+      const booking = sites.length === 0 && project.install_date ? {
+        install_date: project.install_date,
+        install_company: project.install_company || null,
+        install_start_time: project.install_start_time || null,
+        install_end_time: project.install_end_time || null,
+      } : {};
+      const { error: insErr } = await supabase.from('project_sites').insert({ ...row, ...booking, project_id: project.id, position });
       if (insErr) {
         console.error(insErr);
         setError('Could not add that site.');
@@ -267,35 +368,22 @@ export function ProjectSitesPanel({ project, sites, surveysBySite, actorName, re
                 </button>
                 <div className="site-card-controls">
                   {readOnly ? (
-                    <>
-                      <span className={`status-pill status-${siteStatusTone(site.status)}`}>{siteStatusLabel(site.status)}</span>
-                      <span className="site-card-date">{site.install_date ? `Install ${formatDate(site.install_date)}` : 'No install date'}</span>
-                    </>
+                    <span className={`status-pill status-${siteStatusTone(site.status)}`}>{siteStatusLabel(site.status)}</span>
                   ) : (
-                    <>
-                      <select
-                        aria-label={`Stage for ${site.site_name}`}
-                        value={site.status}
-                        disabled={busy}
-                        onChange={(e) => patch(site, { status: e.target.value }, 'Site stage', `${site.site_name}: ${siteStatusLabel(site.status)} → ${siteStatusLabel(e.target.value)}`)}
-                      >
-                        {!SITE_STATUSES.some((s) => s.key === site.status) && <option value={site.status}>{site.status}</option>}
-                        {SITE_STATUSES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-                      </select>
-                      <input
-                        type="date"
-                        aria-label={`Install date for ${site.site_name}`}
-                        title="Install date"
-                        min="2000-01-01"
-                        max="2100-12-31"
-                        value={site.install_date || ''}
-                        disabled={busy}
-                        onChange={(e) => patch(site, { install_date: e.target.value || null }, 'Site install date', `${site.site_name}: ${e.target.value ? formatDate(e.target.value) : 'cleared'}`)}
-                      />
-                    </>
+                    <select
+                      aria-label={`Stage for ${site.site_name}`}
+                      value={site.status}
+                      disabled={busy}
+                      onChange={(e) => patch(site, { status: e.target.value }, 'Site stage', `${site.site_name}: ${siteStatusLabel(site.status)} → ${siteStatusLabel(e.target.value)}`)}
+                    >
+                      {!SITE_STATUSES.some((s) => s.key === site.status) && <option value={site.status}>{site.status}</option>}
+                      {SITE_STATUSES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+                    </select>
                   )}
                 </div>
               </div>
+
+              <SiteBooking site={site} readOnly={readOnly} busy={busy} onSave={bookSite} />
 
               {open && editingId !== site.id && (
                 <div className="site-card-body">
@@ -362,6 +450,24 @@ export function ProjectSitesPanel({ project, sites, surveysBySite, actorName, re
                       ))
                     )}
                   </div>
+
+                  {site.self_survey_token && (
+                    <div className="client-panel-section">
+                      <div className="k">Self-survey link</div>
+                      <p className="hint" style={{ margin: '2px 0 8px' }}>
+                        Opens the guided self survey for this site only — safe to send to the site manager. Works
+                        while the project&apos;s date is within three weeks of the request.
+                      </p>
+                      <SelfSurveyShare
+                        link={site.self_survey_token}
+                        siteName={site.site_name}
+                        projectTitle={project.title}
+                        managerName={site.manager_name}
+                        managerEmail={site.manager_email}
+                        defaultOpen
+                      />
+                    </div>
+                  )}
 
                   {!readOnly && (
                     <div className="toolbar" style={{ marginTop: 12, marginBottom: 0 }}>

@@ -99,11 +99,24 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
   // trail. logProjectActivity writes a row at a time, which is right for a
   // single change and wrong for twenty — that would be twenty round trips.
   async function applyBulk(patch, action, detail) {
-    const ids = [...selected];
+    let ids = [...selected];
     if (!ids.length) return;
-    setBusy(true);
     setError('');
     setNotice('');
+    // Install bookings on a project with sites belong to the sites (migration
+    // 046) — a project-level date there would be overwritten by the next site
+    // change. Leave those out and say so.
+    let skipped = 0;
+    if ('install_date' in patch || 'install_company' in patch) {
+      const siteBased = new Set(rows.filter((r) => r.siteCount > 0).map((r) => r.id));
+      skipped = ids.filter((id) => siteBased.has(id)).length;
+      ids = ids.filter((id) => !siteBased.has(id));
+      if (!ids.length) {
+        setError('Those projects are booked site by site — set install dates and firms on each site from the project page.');
+        return;
+      }
+    }
+    setBusy(true);
 
     const { data, error: updErr } = await supabase
       .from('projects').update(patch).in('id', ids).select('id');
@@ -123,6 +136,9 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
     }
     if (data.length < ids.length) {
       setNotice(`${data.length} of ${ids.length} updated — the rest were refused.`);
+    }
+    if (skipped) {
+      setNotice((n) => `${n ? `${n} ` : ''}${skipped} multi-site project${skipped === 1 ? ' was' : 's were'} skipped — book ${skipped === 1 ? 'it' : 'them'} per site on the project page.`);
     }
 
     await supabase.from('project_activity').insert(

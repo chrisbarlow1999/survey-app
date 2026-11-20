@@ -55,12 +55,17 @@ export default async function ProjectSchedulePage({ searchParams }) {
     return out;
   }
 
-  const SELECT = 'id, title, site_location, status, install_date, install_company, install_start_time, install_end_time, due_date, screen_count, client_id, clients(id, name), owner:profiles!owner_id(id, full_name, email)';
+  // One row per install job (migration 046): a booked site, or a project with
+  // no sites. A project with sites only ever appears through its sites, so a
+  // rollout's three installs land on their own three days.
+  const SELECT = 'job_key, project_id, site_id, title, reference, site_location, status, site_status, client_id, owner_id, install_date, install_company, install_start_time, install_end_time, screen_count';
   const closed = `(${CLOSED_STATUSES.join(',')})`;
+  // A site that's installed or cancelled is done, whatever the project says.
+  const siteDone = (j) => j.site_status === 'installed' || j.site_status === 'cancelled';
 
-  const [{ data: booked, error }, { data: clients }, { data: owners }, { data: late }, { count: unbooked }] =
+  const [{ data: booked, error }, { data: clients }, { data: owners }, { data: lateRows }, { data: unbookedRows }] =
     await Promise.all([
-      applyFilters(supabase.from('projects').select(SELECT))
+      applyFilters(supabase.from('install_jobs').select(SELECT))
         .gte('install_date', range.from)
         .lt('install_date', range.to)
         .order('install_date', { ascending: true }),
@@ -69,36 +74,52 @@ export default async function ProjectSchedulePage({ searchParams }) {
       // Booked for a date that's been and gone, on work that isn't finished.
       // Deliberately not scoped to the view — it's a problem wherever you
       // happen to be looking.
-      applyFilters(supabase.from('projects').select(SELECT))
+      applyFilters(supabase.from('install_jobs').select(SELECT))
         .lt('install_date', today)
         .not('status', 'in', closed)
         .order('install_date', { ascending: true }),
       // Open work with no date yet: the other half of the schedule, and the
-      // reason a light-looking month isn't necessarily a quiet one.
-      applyFilters(supabase.from('projects').select('id', { count: 'exact', head: true }))
+      // reason a light-looking month isn't necessarily a quiet one. Counted
+      // per job, so a rollout with two of five sites booked counts three.
+      applyFilters(supabase.from('install_jobs').select('job_key, site_status'))
         .is('install_date', null)
         .not('status', 'in', closed),
     ]);
 
-  const rows = booked || [];
+  // Client names by id: the view carries client_id only, since embedding
+  // through a union view isn't something PostgREST can work out.
+  const clientName = Object.fromEntries((clients || []).map((c) => [c.id, c.name]));
+  const withClient = (j) => ({ ...j, clients: { id: j.client_id, name: clientName[j.client_id] } });
 
-  // Resourcing comes from the surveys attached to these projects — a project
-  // carries a forecast screen count, never a crew estimate.
-  const ids = rows.map((r) => r.id);
-  const surveysByProject = {};
+  const rows = (booked || []).map(withClient);
+  const late = (lateRows || []).filter((j) => !siteDone(j)).map(withClient);
+  const unbooked = (unbookedRows || []).filter((j) => !siteDone(j)).length;
+
+  // Resourcing comes from the surveys — a project carries a forecast screen
+  // count, never a crew estimate. A site job counts the surveys assigned to
+  // that site; a project job counts all of the project's surveys.
+  const ids = [...new Set(rows.map((r) => r.project_id))];
+  const crewSurveys = [];
   if (ids.length) {
     const { data: surveys } = await supabase
       .from('surveys')
-      .select('id, project_id, engineer_days, engineer_count')
+      .select('id, project_id, project_site_id, engineer_days, engineer_count')
       .in('project_id', ids)
       .is('archived_at', null);
-    (surveys || []).forEach((s) => {
-      (surveysByProject[s.project_id] = surveysByProject[s.project_id] || []).push(s);
-    });
+    const seen = new Set();
+    for (const job of rows) {
+      for (const s of surveys || []) {
+        const belongs = job.site_id ? s.project_site_id === job.site_id : s.project_id === job.project_id;
+        if (belongs && !seen.has(s.id)) {
+          seen.add(s.id);
+          crewSurveys.push(s);
+        }
+      }
+    }
   }
 
   const viewScreens = screenTotals(rows);
-  const viewCrew = engineerDays(Object.values(surveysByProject).flat());
+  const viewCrew = engineerDays(crewSurveys);
   const unassigned = rows.filter((r) => !(r.install_company || '').trim()).length;
 
   function toggleHref(nextView) {
@@ -147,6 +168,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
         <div className="stat-tile">
           <div className="stat-value">{unbooked || 0}</div>
           <div className="stat-label">Open, Not Yet Booked</div>
+          <div className="stat-note">Counted per site on rollouts</div>
         </div>
       </div>
 
@@ -165,7 +187,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
             moved and the date didn&apos;t, or it&apos;s finished and nobody said so.
           </p>
           {late.map((p) => (
-            <a className="sub-row" key={p.id} href={projectHref(p.id, '/projects/schedule', params)}>
+            <a className="sub-row" key={p.job_key} href={projectHref(p.project_id, '/projects/schedule', params)}>
               <div>
                 <div className="site">
                   {p.title}

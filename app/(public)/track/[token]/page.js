@@ -8,6 +8,7 @@ import { describeAnswers, ramsLabel } from '../../../../lib/intakeQuestions';
 import { CLIENT_STAGES, clientStage, trackingPath } from '../../../../lib/clientTracking';
 import { CopyLinkField } from '../../../../components/CopyLinkField';
 import { siteStatusClientLabel, siteStatusTone } from '../../../../lib/siteStatus';
+import { SelfSurveyShare } from '../../../../components/SelfSurveyShare';
 
 function FileList({ token, files }) {
   return (
@@ -49,10 +50,21 @@ export default function TrackingPage({ params }) {
   const supabase = createClient();
   const [project, setProject] = useState(null);
   const [lookupDone, setLookupDone] = useState(false);
+  // Forwardable self-survey links (migration 045): { project, sites: {id: link} }.
+  // Null before 045 runs, in which case the old tracker-based route is used.
+  const [links, setLinks] = useState(null);
+  const [siteTimes, setSiteTimes] = useState({});
 
   useEffect(() => {
-    supabase.rpc('get_project_for_tracking', { p_token: token }).then(({ data }) => {
+    Promise.all([
+      supabase.rpc('get_project_for_tracking', { p_token: token }),
+      supabase.rpc('get_self_survey_links', { p_token: token }),
+      // Per-site install times (migration 046); empty before it runs.
+      supabase.rpc('get_site_install_times', { p_token: token }),
+    ]).then(([{ data }, { data: linkData }, { data: timeData }]) => {
       setProject(data || null);
+      setLinks(linkData || null);
+      setSiteTimes(timeData || {});
       setLookupDone(true);
     });
   }, [token]);
@@ -91,13 +103,27 @@ export default function TrackingPage({ params }) {
   const sites = project.sites || [];
   const multi = sites.length > 1;
   // Self surveys are asked for per site when there are sites, otherwise once.
+  const surveyHref = (siteId) => {
+    const link = siteId ? links?.sites?.[siteId] : links?.project;
+    if (link) return `/self-survey/${link}`;
+    return siteId ? `/track/${token}/self-survey?site=${siteId}` : `/track/${token}/self-survey`;
+  };
   const selfSurveyAsks = !project.self_survey_eligible
     ? []
     : sites.length > 0
       ? sites
           .filter((s) => !s.self_surveyed_at && s.status !== 'cancelled' && s.status !== 'installed')
-          .map((s) => ({ key: s.id, siteName: s.site_name, href: `/track/${token}/self-survey?site=${s.id}` }))
-      : selfSurveys.length === 0 ? [{ key: 'project', siteName: null, href: `/track/${token}/self-survey` }] : [];
+          .map((s) => ({
+            key: s.id,
+            siteName: s.site_name,
+            href: surveyHref(s.id),
+            link: links?.sites?.[s.id] || null,
+            managerName: s.manager_name,
+            managerEmail: s.manager_email,
+          }))
+      : selfSurveys.length === 0
+        ? [{ key: 'project', siteName: project.site_location, href: surveyHref(null), link: links?.project || null }]
+        : [];
   // Project-level RAMS only when there are no sites, or something was put
   // there before sites existed.
   const showProjectRams = sites.length === 0 || ramsFiles.length > 0 || project.rams_required != null;
@@ -142,9 +168,16 @@ export default function TrackingPage({ params }) {
           <div className="kv"><div className="k">Requested on</div><div className="v">{formatDate(submission?.submitted_at || project.created_at)}</div></div>
           <div className="kv"><div className="k">Needed by</div><div className="v">{project.due_date ? formatDate(project.due_date) : '—'}</div></div>
           <div className="kv">
-            <div className="k">Installation</div>
+            {/* On a rollout the project's install date is the next site's
+                (kept in step by migration 046); each site's own is below. */}
+            <div className="k">{multi ? 'Next installation' : 'Installation'}</div>
             <div className="v">
               {project.install_date ? `${formatDate(project.install_date)}${installTime ? ` · ${installTime}` : ''}` : 'Not booked yet'}
+              {multi && (
+                <div className="hint" style={{ margin: '2px 0 0' }}>
+                  {sites.filter((s) => s.install_date).length} of {sites.length} sites booked
+                </div>
+              )}
             </div>
           </div>
           <div className="kv"><div className="k">Screens</div><div className="v">{project.screen_count ?? '—'}</div></div>
@@ -155,17 +188,30 @@ export default function TrackingPage({ params }) {
         <div className="panel tracking-action-panel">
           <h2>Needs your attention <span className="panel-count">{actionCount}</span></h2>
           {selfSurveyAsks.map((a) => (
-            <div className="tracking-action" key={a.key}>
-              <div>
-                <div className="tracking-action-title">
-                  Survey {a.siteName && multi ? a.siteName : 'the site'} yourself
+            <div className="tracking-action tracking-action-stacked" key={a.key}>
+              <div className="tracking-action-row">
+                <div>
+                  <div className="tracking-action-title">
+                    Self survey{a.siteName && multi ? ` — ${a.siteName}` : ''}
+                  </div>
+                  <div className="hint" style={{ margin: 0 }}>
+                    Your date is close, so the site can be surveyed by someone there instead of waiting for an
+                    engineer. Do it yourself, or send it to the site manager.
+                  </div>
                 </div>
-                <div className="hint" style={{ margin: 0 }}>
-                  Your date is close, so you can do the site survey yourself to save time. We&apos;ll guide you
-                  through every photo and measurement.
+                <div className="tracking-action-buttons">
+                  <a className="btn btn-primary" href={a.href}>Start it myself</a>
                 </div>
               </div>
-              <a className="btn btn-primary" href={a.href}>Start self survey</a>
+              {a.link && (
+                <SelfSurveyShare
+                  link={a.link}
+                  siteName={a.siteName}
+                  projectTitle={project.title}
+                  managerName={a.managerName}
+                  managerEmail={a.managerEmail}
+                />
+              )}
             </div>
           ))}
           {awaitingSurveys.filter((s) => s.approval_status === 'awaiting').map((s) => (
@@ -202,7 +248,9 @@ export default function TrackingPage({ params }) {
                     <span className="tracking-site-name">{s.site_name}</span>
                     <span className={`status-pill status-${siteStatusTone(s.status)}`}>{siteStatusClientLabel(s.status)}</span>
                     <span className="tracking-site-date">
-                      {s.install_date ? `Install ${formatDate(s.install_date)}` : 'Install not booked yet'}
+                      {s.install_date
+                        ? `Install ${formatDate(s.install_date)}${timeRange(siteTimes[s.id]?.start, siteTimes[s.id]?.end) ? ` · ${timeRange(siteTimes[s.id]?.start, siteTimes[s.id]?.end)}` : ''}`
+                        : 'Install not booked yet'}
                     </span>
                   </summary>
                   <div className="tracking-site-body">
@@ -246,7 +294,7 @@ export default function TrackingPage({ params }) {
                     {s.self_surveyed_at && (
                       <p className="hint" style={{ margin: '12px 0 0' }}>
                         Your self survey for this site was received {formatDateTime(s.self_surveyed_at)}.
-                        {project.self_survey_eligible && <> <a href={`/track/${token}/self-survey?site=${s.id}`}>Send another</a>.</>}
+                        {project.self_survey_eligible && <> <a href={surveyHref(s.id)}>Send another</a>.</>}
                       </p>
                     )}
                   </div>

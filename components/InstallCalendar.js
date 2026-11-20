@@ -41,10 +41,13 @@ function navHref(basePath, params, patch) {
   return qs ? `${basePath}?${qs}` : basePath;
 }
 
+// `project` is an install job (migration 046's install_jobs view): either a
+// whole project or one site of it. project_id is where it links to; older
+// callers passing plain projects still work through `id`.
 function JobBlock({ project, params, basePath, laneCls }) {
   const time = formatTimeRange(project.install_start_time, project.install_end_time);
   return (
-    <a className={`cal-job ${laneCls}`} href={projectHref(project.id, basePath, params)}>
+    <a className={`cal-job ${laneCls}${project.site_id ? ' site-job' : ''}`} href={projectHref(project.project_id || project.id, basePath, params)}>
       <span className="cal-job-time">{time}</span>
       <span className="cal-job-title">{project.title}</span>
       {/* Site and client are the point of the whole view: this is what lets
@@ -180,7 +183,7 @@ export function InstallCalendar({ projects, view, anchor, basePath, params, toda
                         <span className="cal-cell-flag">{jobs.length} jobs — already out</span>
                       )}
                       {jobs.map((p) => (
-                        <JobBlock key={p.id} project={p} params={params} basePath={basePath} laneCls={cls} />
+                        <JobBlock key={p.job_key || p.id} project={p} params={params} basePath={basePath} laneCls={cls} />
                       ))}
                     </div>
                   );

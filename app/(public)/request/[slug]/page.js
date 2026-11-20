@@ -250,12 +250,10 @@ export default function ClientRequestPage({ params }) {
                   <p className="hint" style={{ margin: '0 0 10px' }}>
                     To save time, you can survey {sites.length > 1 ? 'each site' : 'the site'} yourself instead of
                     waiting for an engineer visit. We&apos;ll guide you through each photo and measurement — about
-                    15 minutes per screen location, on your phone.
-                    {sites.length > 1 ? ' Start each site from your project page.' : ''}
+                    15 minutes per screen location, on your phone. From your project page you can start it
+                    yourself, or send each site&apos;s survey to its manager — that link shows them the survey only.
                   </p>
-                  <a className="btn btn-primary" href={trackingPath(trackingToken)}>
-                    {sites.length > 1 ? 'Go to your project page' : 'Start self survey'}
-                  </a>
+                  <a className="btn btn-primary" href={trackingPath(trackingToken)}>Self survey options</a>
                 </div>
               )}
               <div className="actions-row" style={{ justifyContent: 'flex-start', marginBottom: 0, marginTop: 14 }}>
