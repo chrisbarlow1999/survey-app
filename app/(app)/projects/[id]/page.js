@@ -11,6 +11,7 @@ import { parseReturnHref, backLabel } from '../../../../lib/projectBackLink';
 import { surveyInclusion, screenCountOf } from '../../../../lib/surveyScreens';
 import { SurveyCountPanel } from '../../../../components/SurveyCountPanel';
 import { ProjectClientPanel } from '../../../../components/ProjectClientPanel';
+import { ProjectSitesPanel } from '../../../../components/ProjectSitesPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,7 @@ export default async function ProjectPage({ params, searchParams }) {
     { data: notes },
     { data: clients },
     { data: owners },
+    { data: siteRows, error: sitesError },
   ] = await Promise.all([
     supabase
       .from('project_tasks')
@@ -73,7 +75,27 @@ export default async function ProjectPage({ params, searchParams }) {
     supabase.from('project_notes').select('*').eq('project_id', id).order('created_at', { ascending: true }),
     supabase.from('clients').select('id, name').order('name', { ascending: true }),
     supabase.from('profiles').select('id, full_name, email').in('role', ['user', 'super_admin']).eq('active', true).order('full_name', { ascending: true }),
+    // Errors (rather than returning nothing) until migration 044 is run; the
+    // Sites panel is simply left off in that case.
+    supabase.from('project_sites').select('*').eq('project_id', id).order('position', { ascending: true }).order('created_at', { ascending: true }),
   ]);
+
+  const sites = await Promise.all(
+    (siteRows || []).map(async (s) => ({
+      ...s,
+      rams_files: await Promise.all(
+        (s.rams_files || []).map(async (f) => {
+          const { data } = await supabase.storage.from('survey-photos').createSignedUrl(f.path, 60 * 60);
+          return { ...f, url: data?.signedUrl || null };
+        })
+      ),
+    }))
+  );
+  const siteNameById = Object.fromEntries(sites.map((s) => [s.id, s.site_name]));
+  const surveysBySite = {};
+  for (const s of surveys || []) {
+    if (s.project_site_id) (surveysBySite[s.project_site_id] ||= []).push(s);
+  }
 
   const attachments = await Promise.all(
     (project.attachments || []).map(async (a) => {
@@ -102,7 +124,13 @@ export default async function ProjectPage({ params, searchParams }) {
   const linkedError = surveysError || installsError || visitsError;
 
   const linked = [
-    ...(surveys || []).map((r) => ({ ...r, kind: r.survey_kind === 'self' ? 'Self survey' : 'Survey', href: `/dashboard/${r.id}`, date: r.survey_date })),
+    ...(surveys || []).map((r) => ({
+      ...r,
+      kind: r.survey_kind === 'self' ? 'Self survey' : 'Survey',
+      href: `/dashboard/${r.id}`,
+      date: r.survey_date,
+      siteName: r.project_site_id ? siteNameById[r.project_site_id] : null,
+    })),
     ...(installations || []).map((r) => ({ ...r, kind: 'Install', href: `/installations/${r.id}`, date: r.install_date })),
     ...(visits || []).map((r) => ({ ...r, kind: 'Visit', href: `/visits/${r.id}`, date: r.visit_date })),
   ];
@@ -152,9 +180,20 @@ export default async function ProjectPage({ params, searchParams }) {
         />
       )}
 
+      {!sitesError && (
+        <ProjectSitesPanel
+          project={project}
+          sites={sites}
+          surveysBySite={surveysBySite}
+          actorName={actorName}
+          readOnly={!canEdit}
+        />
+      )}
+
       <ProjectClientPanel
         project={project}
         ramsFiles={ramsFiles}
+        siteCount={sites.length}
         actorName={actorName}
         readOnly={!canEdit}
       />
@@ -193,7 +232,10 @@ export default async function ProjectPage({ params, searchParams }) {
           <a className="sub-row" key={`${r.kind}-${r.id}`} href={r.href}>
             <div>
               <div className="site">{r.site_location || 'Untitled site'}</div>
-              <div className="meta">{r.date ? formatDate(r.date) : '—'}</div>
+              <div className="meta">
+                {r.date ? formatDate(r.date) : '—'}
+                {r.siteName ? ` · Site: ${r.siteName}` : ''}
+              </div>
             </div>
             <div className="count">{r.kind}</div>
           </a>

@@ -7,6 +7,20 @@ import { formatBytes } from '../../../../lib/formatBytes';
 import { describeAnswers, ramsLabel } from '../../../../lib/intakeQuestions';
 import { CLIENT_STAGES, clientStage, trackingPath } from '../../../../lib/clientTracking';
 import { CopyLinkField } from '../../../../components/CopyLinkField';
+import { siteStatusClientLabel, siteStatusTone } from '../../../../lib/siteStatus';
+
+function FileList({ token, files }) {
+  return (
+    <div className="attachment-list">
+      {files.map((f) => (
+        <div className="attachment-row" key={f.path}>
+          <a className="attachment-name" href={fileUrl(token, f.path)} target="_blank" rel="noreferrer">{f.name}</a>
+          {f.size ? <span className="attachment-size">{formatBytes(f.size)}</span> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function fileUrl(token, path) {
   return `/api/tracking-file?token=${encodeURIComponent(token)}&path=${encodeURIComponent(path)}`;
@@ -72,10 +86,25 @@ export default function TrackingPage({ params }) {
   const awaitingSurveys = (project.survey_approvals || []);
   const quotes = (project.quote_approvals || []);
   const selfSurveys = project.self_surveys || [];
+  // Sites (migration 044). A request always has at least one; older and
+  // manual projects may have none and fall back to the project-level fields.
+  const sites = project.sites || [];
+  const multi = sites.length > 1;
+  // Self surveys are asked for per site when there are sites, otherwise once.
+  const selfSurveyAsks = !project.self_survey_eligible
+    ? []
+    : sites.length > 0
+      ? sites
+          .filter((s) => !s.self_surveyed_at && s.status !== 'cancelled' && s.status !== 'installed')
+          .map((s) => ({ key: s.id, siteName: s.site_name, href: `/track/${token}/self-survey?site=${s.id}` }))
+      : selfSurveys.length === 0 ? [{ key: 'project', siteName: null, href: `/track/${token}/self-survey` }] : [];
+  // Project-level RAMS only when there are no sites, or something was put
+  // there before sites existed.
+  const showProjectRams = sites.length === 0 || ramsFiles.length > 0 || project.rams_required != null;
   const actionCount =
     awaitingSurveys.filter((s) => s.approval_status === 'awaiting').length
     + quotes.filter((q) => q.approval_status === 'awaiting').length
-    + (project.self_survey_eligible && selfSurveys.length === 0 ? 1 : 0);
+    + selfSurveyAsks.length;
   const installTime = timeRange(project.install_start_time, project.install_end_time);
 
   return (
@@ -85,7 +114,11 @@ export default function TrackingPage({ params }) {
           {project.client_name}{project.reference ? ` · Ref ${project.reference}` : ''}
         </div>
         <h2 style={{ fontSize: 22, marginBottom: 4 }}>{project.title}</h2>
-        {project.site_location && <p className="hint" style={{ marginTop: 0 }}>{project.site_location}</p>}
+        {multi ? (
+          <p className="hint" style={{ marginTop: 0 }}>{sites.length} sites · {sites.map((s) => s.site_name).join(', ')}</p>
+        ) : (
+          project.site_location && <p className="hint" style={{ marginTop: 0 }}>{project.site_location}</p>
+        )}
 
         {/* Where the job is. Off-path statuses (on hold, waiting on you,
             cancelled) are a note rather than a step, since they can happen at
@@ -121,18 +154,20 @@ export default function TrackingPage({ params }) {
       {actionCount > 0 && (
         <div className="panel tracking-action-panel">
           <h2>Needs your attention <span className="panel-count">{actionCount}</span></h2>
-          {project.self_survey_eligible && selfSurveys.length === 0 && (
-            <div className="tracking-action">
+          {selfSurveyAsks.map((a) => (
+            <div className="tracking-action" key={a.key}>
               <div>
-                <div className="tracking-action-title">Survey the site yourself</div>
+                <div className="tracking-action-title">
+                  Survey {a.siteName && multi ? a.siteName : 'the site'} yourself
+                </div>
                 <div className="hint" style={{ margin: 0 }}>
                   Your date is close, so you can do the site survey yourself to save time. We&apos;ll guide you
                   through every photo and measurement.
                 </div>
               </div>
-              <a className="btn btn-primary" href={`/track/${token}/self-survey`}>Start self survey</a>
+              <a className="btn btn-primary" href={a.href}>Start self survey</a>
             </div>
-          )}
+          ))}
           {awaitingSurveys.filter((s) => s.approval_status === 'awaiting').map((s) => (
             <div className="tracking-action" key={s.approval_token}>
               <div>
@@ -151,6 +186,78 @@ export default function TrackingPage({ params }) {
               <a className="btn btn-primary" href={`/quote/${q.approval_token}`}>Review quote</a>
             </div>
           ))}
+        </div>
+      )}
+
+      {sites.length > 0 && (
+        <div className="panel">
+          <h2>{multi ? 'Your sites' : 'Your site'} {multi && <span className="panel-count">{sites.length}</span>}</h2>
+          <div className="tracking-sites">
+            {sites.map((s) => {
+              const access = describeAnswers(s.access_answers);
+              const siteRams = s.rams_files || [];
+              return (
+                <details className="tracking-site" key={s.id} open={!multi}>
+                  <summary>
+                    <span className="tracking-site-name">{s.site_name}</span>
+                    <span className={`status-pill status-${siteStatusTone(s.status)}`}>{siteStatusClientLabel(s.status)}</span>
+                    <span className="tracking-site-date">
+                      {s.install_date ? `Install ${formatDate(s.install_date)}` : 'Install not booked yet'}
+                    </span>
+                  </summary>
+                  <div className="tracking-site-body">
+                    <div className="kv-grid">
+                      {s.address && <div className="kv"><div className="k">Address</div><div className="v" style={{ whiteSpace: 'pre-wrap' }}>{s.address}</div></div>}
+                      {s.cost_centre && <div className="kv"><div className="k">Cost centre</div><div className="v">{s.cost_centre}</div></div>}
+                      {s.unit_number && <div className="kv"><div className="k">Unit number</div><div className="v">{s.unit_number}</div></div>}
+                      {(s.manager_name || s.manager_phone || s.manager_email) && (
+                        <div className="kv"><div className="k">Site manager</div><div className="v" style={{ whiteSpace: 'pre-wrap' }}>{[s.manager_name, s.manager_phone, s.manager_email].filter(Boolean).join('\n')}</div></div>
+                      )}
+                      {s.screen_count != null && <div className="kv"><div className="k">Screens</div><div className="v">{s.screen_count}</div></div>}
+                      {s.opening_hours && <div className="kv"><div className="k">Opening hours</div><div className="v">{s.opening_hours}</div></div>}
+                      {s.install_preferences && <div className="kv"><div className="k">Install preferences</div><div className="v">{s.install_preferences}</div></div>}
+                    </div>
+                    {s.notes && <div className="kv" style={{ marginBottom: 12 }}><div className="k">Notes</div><div className="v" style={{ whiteSpace: 'pre-wrap' }}>{s.notes}</div></div>}
+
+                    <div className="k tracking-subhead">RAMS · {ramsLabel(s.rams_required)}</div>
+                    {siteRams.length > 0 ? (
+                      <FileList token={token} files={siteRams} />
+                    ) : (
+                      <p className="hint" style={{ margin: 0 }}>
+                        {s.rams_required === true
+                          ? "We're preparing the RAMS for this site. They'll appear here to download when ready."
+                          : 'None added for this site.'}
+                      </p>
+                    )}
+
+                    {access.length > 0 && (
+                      <>
+                        <div className="k tracking-subhead">Site access</div>
+                        <dl className="intake-answer-list">
+                          {access.map((a) => (
+                            <div key={a.key} className="intake-answer" style={a.depth ? { paddingLeft: 14 * a.depth } : undefined}>
+                              <dt>{a.label}</dt><dd>{a.value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </>
+                    )}
+
+                    {s.self_surveyed_at && (
+                      <p className="hint" style={{ margin: '12px 0 0' }}>
+                        Your self survey for this site was received {formatDateTime(s.self_surveyed_at)}.
+                        {project.self_survey_eligible && <> <a href={`/track/${token}/self-survey?site=${s.id}`}>Send another</a>.</>}
+                      </p>
+                    )}
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+          <p className="hint" style={{ margin: '10px 0 0' }}>
+            Something changed at a site — a new manager, different hours? Let your Linney contact know and we&apos;ll
+            update it.
+          </p>
         </div>
       )}
 
@@ -218,7 +325,7 @@ export default function TrackingPage({ params }) {
               <div className="count"><span className="status-pill">{APPROVAL_LABELS[q.approval_status] || q.approval_status}</span></div>
             </a>
           ))}
-          {project.self_survey_eligible && selfSurveys.length > 0 && (
+          {project.self_survey_eligible && selfSurveys.length > 0 && sites.length === 0 && (
             <p className="hint" style={{ marginBottom: 0 }}>
               Need to add another area or correct something? <a href={`/track/${token}/self-survey`}>Send another self survey</a>.
             </p>
@@ -226,8 +333,9 @@ export default function TrackingPage({ params }) {
         </div>
       )}
 
+      {showProjectRams && (
       <div className="panel">
-        <h2>RAMS <span className="area-screen-count">{ramsLabel(project.rams_required)}</span></h2>
+        <h2>{sites.length > 0 ? 'RAMS — whole project' : 'RAMS'} <span className="area-screen-count">{ramsLabel(project.rams_required)}</span></h2>
         {ramsFiles.length > 0 ? (
           <div className="attachment-list">
             {ramsFiles.map((f) => (
@@ -245,6 +353,7 @@ export default function TrackingPage({ params }) {
           </div>
         )}
       </div>
+      )}
 
       <div className="panel">
         <h2>What you sent us</h2>
@@ -253,8 +362,19 @@ export default function TrackingPage({ params }) {
         )}
         <div className="kv-grid">
           <div className="kv"><div className="k">Request</div><div className="v">{submission?.title || project.title}</div></div>
-          <div className="kv"><div className="k">Site</div><div className="v">{(submission ? submission.site_location : project.site_location) || '—'}</div></div>
-          <div className="kv"><div className="k">Address</div><div className="v">{(submission ? submission.address : project.address) || '—'}</div></div>
+          {submission?.sites?.length > 0 ? (
+            <div className="kv">
+              <div className="k">{submission.sites.length > 1 ? `Sites (${submission.sites.length})` : 'Site'}</div>
+              <div className="v" style={{ whiteSpace: 'pre-wrap' }}>
+                {submission.sites.map((s) => [s.site_name, s.cost_centre && `CC ${s.cost_centre}`, s.unit_number && `Unit ${s.unit_number}`].filter(Boolean).join(' · ')).join('\n')}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="kv"><div className="k">Site</div><div className="v">{(submission ? submission.site_location : project.site_location) || '—'}</div></div>
+              <div className="kv"><div className="k">Address</div><div className="v">{(submission ? submission.address : project.address) || '—'}</div></div>
+            </>
+          )}
           {submission && (
             <div className="kv"><div className="k">Contact</div><div className="v">{[submission.requested_by, submission.requester_email].filter(Boolean).join(' · ') || '—'}</div></div>
           )}

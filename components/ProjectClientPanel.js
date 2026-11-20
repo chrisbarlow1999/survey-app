@@ -22,7 +22,7 @@ const RAMS_OPTIONS = [
 //
 // RAMS files live in their own column (rams_files), not in Attachments, because
 // they're shown to the client on the tracking page and Attachments is not.
-export function ProjectClientPanel({ project, ramsFiles, actorName, readOnly }) {
+export function ProjectClientPanel({ project, ramsFiles, siteCount = 0, actorName, readOnly }) {
   const supabase = createClient();
   const router = useRouter();
   const [ramsRequired, setRamsRequired] = useState(project.rams_required ?? null);
@@ -42,6 +42,10 @@ export function ProjectClientPanel({ project, ramsFiles, actorName, readOnly }) 
   const answers = describeAnswers(project.intake_answers);
   const storedRams = project.rams_files || [];
   const ramsMissing = ramsRequired === true && storedRams.length === 0;
+  // Once a project has sites, access answers and RAMS are recorded per site
+  // (migration 044). The project-level ones are only shown if something was
+  // already recorded there before the sites were added.
+  const projectLevelRams = siteCount === 0 || ramsRequired !== null || storedRams.length > 0;
 
   async function setRams(value) {
     if (value === ramsRequired) return;
@@ -136,8 +140,16 @@ export function ProjectClientPanel({ project, ramsFiles, actorName, readOnly }) 
         </div>
       )}
 
+      {!projectLevelRams && (
+        <div className="client-panel-section">
+          <div className="k">Site access &amp; RAMS</div>
+          <p className="hint" style={{ margin: '2px 0 0' }}>Recorded per site — see Sites above.</p>
+        </div>
+      )}
+
+      {projectLevelRams && (
       <div className="client-panel-section">
-        <div className="k">RAMS</div>
+        <div className="k">{siteCount > 0 ? 'RAMS (whole project)' : 'RAMS'}</div>
         {readOnly ? (
           <div className="v">{ramsLabel(ramsRequired)}</div>
         ) : (
@@ -187,6 +199,7 @@ export function ProjectClientPanel({ project, ramsFiles, actorName, readOnly }) 
         )}
         {!readOnly && <p className="hint" style={{ margin: '6px 0 0' }}>Files here can be downloaded by the client from their tracking link.</p>}
       </div>
+      )}
 
       {error && <p className="error-text">{error}</p>}
     </div>

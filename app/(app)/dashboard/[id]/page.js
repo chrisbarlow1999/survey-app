@@ -171,6 +171,7 @@ export default async function ReportPage({ params }) {
             table="surveys"
             recordId={survey.id}
             currentProjectId={survey.project_id}
+            currentSiteId={survey.project_site_id}
             projects={linkableProjects || []}
             actorName={actorName}
             recordLabel={`Survey — ${survey.site_location || "Untitled site"}`}

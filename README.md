@@ -330,6 +330,14 @@ hand-synced copies.
     files on the tracking page are served through `/api/tracking-file`, which
     needs `SUPABASE_SERVICE_ROLE_KEY` like the approval photos do.
 
+51. Also run `supabase/044_project_sites.sql` — again **before deploying the
+    matching code**: the request form now submits through
+    `submit_intake_request()`, which this creates. Adds `project_sites` (one
+    row per location of a project, with cost centre, unit number, manager,
+    hours, install preferences, access answers, RAMS, its own stage and
+    install date), `surveys.project_site_id`, and updates the tracking page
+    and self-survey functions to know about sites. See **Multi-site projects**.
+
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
 and no markers, so **delete existing surveys and install confirmations** rather
@@ -815,6 +823,43 @@ Records, quotes and the screens pipeline, and is flagged on the report. Model,
 mount type and resourcing are left blank for a PM to fill in via Edit Survey.
 The three-week rule is checked in the browser and again in
 `project_self_survey_eligible()`; to change the window, change both.
+
+## Multi-site projects
+
+A rollout is one project with several **sites** — Saputo is the project; Leeds,
+Bristol and Glasgow are its sites, each with its own address, cost centre, unit
+number, site manager, opening hours, preferred install times, access answers
+and RAMS.
+
+**On the request form** the client says whether it's for more than one site. A
+single-site request shows one site block; a rollout shows one per site with
+**+ Add another site** (up to 50) and **Copy access & hours from site 1** for
+the details that are usually shared. The whole request — project and every site
+— is created in one call (`submit_intake_request()`), so it either all lands or
+none of it does. `projects.site_location` is filled with the site names so the
+board, table, search and Site History keep working without knowing about sites.
+
+**On the project page** the **Sites** panel lists each site with its own stage
+(`lib/siteStatus.js`: Awaiting survey → Surveyed → Approved → Install booked →
+Installed, plus On hold / Cancelled) and install date, changed in place and
+written to Activity. Open a site for its details, access answers, RAMS uploads
+and the surveys linked to it. Sites can be added, edited and removed on any
+project; adding the first site to an older single-site project starts from the
+project's own name, address and access answers. Tasks, notes, owner and the
+overall project status stay at project level.
+
+**Surveys** can be assigned to a site from the survey's own page (the project
+picker shows a site list once the project has sites). Self surveys started from
+a site on the tracking page are assigned to that site automatically.
+
+**On the tracking page** the client sees each site with its stage (in client
+wording), install date, details, access answers, RAMS to download, and a
+self-survey button per site when the date is within three weeks.
+
+**Not built yet:** per-site install dates don't appear on `/projects/schedule`
+(that still uses the project's install date), the board and table don't show a
+site count, and Duplicate deliberately doesn't copy sites — like site name and
+address, they're what makes the copy a different job.
 
 ## Request form abuse protection
 

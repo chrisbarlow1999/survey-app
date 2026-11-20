@@ -63,12 +63,16 @@ function PhotoField({ label, preview, onPick, onClear, required }) {
   );
 }
 
-export default function SelfSurveyPage({ params }) {
+export default function SelfSurveyPage({ params, searchParams }) {
   const { token } = use(params);
+  // ?site=<id> on a multi-site project (migration 044). Checked against the
+  // project's own sites below, and again by submit_self_survey().
+  const { site: siteParam } = use(searchParams) || {};
   const supabase = createClient();
-  const draftKey = `self-survey-${token}`;
+  const draftKey = `self-survey-${token}${siteParam ? `-${siteParam}` : ''}`;
 
   const [project, setProject] = useState(null);
+  const [site, setSite] = useState(null);
   const [lookupDone, setLookupDone] = useState(false);
   const [you, setYou] = useState({ name: '', phone: '', siteContact: '', siteLocation: '', address: '', additionalInfo: '' });
   const [areas, setAreas] = useState([freshSelfArea()]);
@@ -82,16 +86,21 @@ export default function SelfSurveyPage({ params }) {
     supabase.rpc('get_project_for_tracking', { p_token: token }).then(({ data }) => {
       setProject(data || null);
       if (data) {
+        const s = (data.sites || []).find((x) => x.id === siteParam)
+          // A single-site request has exactly one site; use it without a param.
+          || ((data.sites || []).length === 1 ? data.sites[0] : null);
+        setSite(s || null);
         setYou((y) => ({
           ...y,
           name: y.name || data.submission?.requested_by || '',
-          siteLocation: y.siteLocation || data.site_location || '',
-          address: y.address || data.address || '',
+          siteLocation: y.siteLocation || s?.site_name || data.site_location || '',
+          address: y.address || s?.address || data.address || '',
+          siteContact: y.siteContact || [s?.manager_name, s?.manager_phone].filter(Boolean).join(', '),
         }));
       }
       setLookupDone(true);
     });
-  }, [token]);
+  }, [token, siteParam]);
 
   useEffect(() => { setDraft(loadDraft(draftKey)); }, [draftKey]);
 
@@ -274,6 +283,7 @@ export default function SelfSurveyPage({ params }) {
 
       const { data: surveyId, error: rpcErr } = await supabase.rpc('submit_self_survey', {
         p_token: token,
+        p_site_id: site?.id || null,
         p_survey: {
           name: you.name,
           phone: you.phone,
@@ -371,7 +381,9 @@ export default function SelfSurveyPage({ params }) {
 
       {current.kind === 'you' && (
         <div className="panel">
-          <div className="tracking-eyebrow">Self survey · {project.title}</div>
+          <div className="tracking-eyebrow">
+            Self survey · {project.title}{site && (project.sites || []).length > 1 ? ` · ${site.site_name}` : ''}
+          </div>
           <h2>Before you start</h2>
           <p className="hint">
             We&apos;ll walk you through each place a screen will go: a few photos, a couple of measurements and

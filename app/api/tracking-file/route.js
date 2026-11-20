@@ -39,6 +39,8 @@ export async function GET(request) {
   const allowed = new Set();
   (project.rams_files || []).forEach((f) => f?.path && allowed.add(f.path));
   (project.submission?.attachments || []).forEach((f) => f?.path && allowed.add(f.path));
+  // Per-site RAMS (migration 044).
+  (project.sites || []).forEach((s) => (s.rams_files || []).forEach((f) => f?.path && allowed.add(f.path)));
   if (!allowed.has(path)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
