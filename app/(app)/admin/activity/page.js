@@ -15,6 +15,9 @@ const ACTION_LABELS = {
   create_client: 'added client',
   rename_client: 'renamed client',
   delete_client: 'deleted client',
+  create_sector: 'added sector',
+  rename_sector: 'renamed sector',
+  delete_sector: 'removed sector',
 };
 
 function describe(entry) {
@@ -23,7 +26,7 @@ function describe(entry) {
   let extra = '';
   if (entry.action === 'change_role' && d.from && d.to) extra = ` (${d.from} → ${d.to})`;
   if ((entry.action === 'grant_client_access' || entry.action === 'revoke_client_access') && d.client_name) extra = ` — ${d.client_name}`;
-  if ((entry.action === 'rename_client' || entry.action === 'rename_account') && d.from) extra = ` (was "${d.from}")`;
+  if ((entry.action === 'rename_client' || entry.action === 'rename_account' || entry.action === 'rename_sector') && d.from) extra = ` (was "${d.from}")`;
   if (entry.action === 'create_account' && d.role) extra = ` (${d.role})`;
   return `${label} ${entry.target || ''}${extra}`;
 }

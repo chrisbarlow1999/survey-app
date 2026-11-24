@@ -29,6 +29,7 @@ export function DuplicateProjectButton({ project, tasks, actorName }) {
       .from('projects')
       .insert({
         client_id: project.client_id,
+        sector_id: project.sector_id || null,
         title: `${project.title} (copy)`,
         description: project.description,
         priority: project.priority,

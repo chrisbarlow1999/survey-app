@@ -7,6 +7,7 @@ import { SCREEN_SIZES } from '../lib/screenSizes';
 import { formatDate, formatDateTime } from '../lib/formatDate';
 import { applyArchiveFilter } from './ArchiveFilter';
 import { statusLabel, priorityLabel } from '../lib/projectStatus';
+import { SECTOR_EMBED } from '../lib/sectors';
 
 // Fetches the full filtered set when clicked rather than exporting just the
 // visible page — the list itself is paginated for performance, but an export
@@ -27,7 +28,7 @@ const INSTALLATION_HEADERS = [
 ];
 
 const PROJECT_HEADERS = [
-  'Title', 'Reference', 'Client', 'Status', 'Priority', 'Owner', 'Site', 'Address',
+  'Title', 'Reference', 'Client', 'Sector', 'Status', 'Priority', 'Owner', 'Site', 'Address',
   'Due Date', 'Install Date', 'Screens', 'Value (GBP)', 'Requested By', 'Source', 'Open Tasks', 'Total Tasks', 'Created',
 ];
 
@@ -140,6 +141,7 @@ function projectRows(projects) {
     p.title || '',
     p.reference || '',
     p.clients?.name || '',
+    p.sector?.name || '',
     statusLabel(p.status),
     priorityLabel(p.priority),
     p.owner?.full_name || p.owner?.email || 'Unassigned',
@@ -199,7 +201,7 @@ const CONFIG = {
     searchColumns: ['title', 'reference', 'site_location'],
     headers: PROJECT_HEADERS,
     buildRows: projectRows,
-    select: 'id, title, reference, site_location, address, status, priority, due_date, install_date, screen_count, value_gbp, requested_by, source, created_at, clients(name), owner:profiles!owner_id(full_name, email)',
+    select: `id, title, reference, site_location, address, status, priority, due_date, install_date, screen_count, value_gbp, requested_by, source, created_at, clients(name), ${SECTOR_EMBED}, owner:profiles!owner_id(full_name, email)`,
     // Task counts live in another table, so they need a second round trip.
     // Tallied in one go rather than per project, to avoid an N+1.
     enrich: async (supabase, rows) => {
@@ -235,6 +237,7 @@ export function ExportCsvButton({ kind, filters }) {
     try {
       let query = applyArchiveFilter(supabase.from(config.table).select(config.select), filters.archived);
       if (filters.clientId) query = query.eq('client_id', filters.clientId);
+      if (filters.sectorId) query = query.eq('sector_id', filters.sectorId);
       if (config.dateColumn && filters.from) query = query.gte(config.dateColumn, filters.from);
       if (config.dateColumn && filters.to) query = query.lte(config.dateColumn, filters.to);
       // Projects-only filters. Harmless for the other kinds, which never send them.

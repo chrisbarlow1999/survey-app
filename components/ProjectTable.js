@@ -10,6 +10,7 @@ import { resolveProjectSort } from '../lib/listQuery';
 import { screenTotals } from '../lib/screenCount';
 import { valueTotals, formatGBP } from '../lib/money';
 import { projectHref } from '../lib/projectBackLink';
+import { projectClientLabel } from '../lib/sectors';
 
 // The dense management read on the pipeline: one row per project, the columns
 // you'd want in a spreadsheet, sortable by clicking a heading, and a place to
@@ -43,7 +44,7 @@ const COLS = {
 // Carries the filters but drops page — a re-sorted list has a different page 4.
 function sortHref(basePath, params, value) {
   const sp = new URLSearchParams();
-  ['q', 'client', 'status', 'owner', 'archived'].forEach((k) => {
+  ['q', 'client', 'sector', 'status', 'owner', 'archived'].forEach((k) => {
     if (params?.[k]) sp.set(k, params[k]);
   });
   sp.set('sort', value);
@@ -303,7 +304,7 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
                       </div>
                     )}
                   </td>
-                  <td>{p.clients?.name || '—'}</td>
+                  <td>{projectClientLabel(p) || '—'}</td>
                   <td>
                     <span className={`status-pill status-${statusTone(p.status)}`}>{statusLabel(p.status)}</span>
                   </td>

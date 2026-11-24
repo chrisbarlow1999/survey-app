@@ -48,7 +48,7 @@ function InstallSummary({ sites }) {
   );
 }
 
-export function ProjectDetailsPanel({ project, clients, owners, actorName, canEdit, surveyedScreens = 0, sites = [] }) {
+export function ProjectDetailsPanel({ project, clients, sectors = [], owners, actorName, canEdit, surveyedScreens = 0, sites = [] }) {
   const supabase = createClient();
   const router = useRouter();
 
@@ -74,6 +74,7 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     value_gbp: project.value_gbp ?? '',
     owner_id: project.owner_id || '',
     client_id: project.client_id || '',
+    sector_id: project.sector_id || '',
     requested_by: project.requested_by || '',
     requester_email: project.requester_email || '',
   });
@@ -90,6 +91,13 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
   function clientName(id) {
     return clients.find((c) => c.id === id)?.name || '—';
   }
+  function sectorName(id) {
+    if (!id) return 'None';
+    return sectors.find((s) => s.id === id)?.name || '—';
+  }
+  // Only the current client's sectors. The field is left off for a client
+  // with none, unless this project somehow still carries one.
+  const clientSectors = sectors.filter((s) => s.client_id === values.client_id);
 
   // What gets written to the activity feed. Only the changes worth a line get
   // one — retyping an address shouldn't read like a milestone.
@@ -113,6 +121,9 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     }
     if (key === 'client_id') {
       return { action: 'Client changed', detail: `${clientName(from)} → ${clientName(to)}` };
+    }
+    if (key === 'sector_id') {
+      return { action: 'Sector changed', detail: `${sectorName(from)} → ${sectorName(to)}` };
     }
     if (key === 'screen_count') {
       const show = (v) => (v === '' || v == null ? 'Not estimated' : v);
@@ -182,13 +193,17 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
     setEditingKey(null);
     // Optimistic: the field shows the new value straight away and rolls back if
     // the write is refused.
+    // A sector belongs to one client, so moving client clears it — the same
+    // thing the database trigger in migration 047 does.
+    const previousSector = values.sector_id;
     setValues((v) => ({
       ...v,
       [key]: value,
       ...(key === 'install_date' && !value ? { install_start_time: '', install_end_time: '' } : {}),
+      ...(key === 'client_id' ? { sector_id: '' } : {}),
     }));
 
-    const nullable = ['reference', 'site_location', 'address', 'description', 'due_date', 'install_date', 'install_company', 'install_start_time', 'install_end_time', 'owner_id', 'requested_by', 'requester_email', 'screen_count', 'value_gbp'];
+    const nullable = ['reference', 'site_location', 'address', 'description', 'due_date', 'install_date', 'install_company', 'install_start_time', 'install_end_time', 'owner_id', 'requested_by', 'requester_email', 'screen_count', 'value_gbp', 'sector_id'];
     // screen_count is an integer column, so a cleared box has to be written as
     // null. Sending '' would be rejected outright, and sending 0 would claim
     // the project needs no screens.
@@ -200,6 +215,7 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
       patch.install_start_time = null;
       patch.install_end_time = null;
     }
+    if (key === 'client_id' && previousSector) patch.sector_id = null;
     const { error: updErr } = await supabase
       .from('projects')
       .update(patch)
@@ -207,7 +223,7 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
 
     if (updErr) {
       console.error(updErr);
-      setValues((v) => ({ ...v, [key]: previous }));
+      setValues((v) => ({ ...v, [key]: previous, ...(key === 'client_id' ? { sector_id: previousSector } : {}) }));
       setError('Could not save that change.');
       setSavingKey(null);
       return;
@@ -345,6 +361,14 @@ export function ProjectDetailsPanel({ project, clients, owners, actorName, canEd
           options={clients.map((c) => ({ value: c.id, label: c.name }))}
           render={clientName}
         />
+        {(clientSectors.length > 0 || values.sector_id) && (
+          <SelectField
+            label="Sector"
+            fieldKey="sector_id"
+            options={[{ value: '', label: 'None' }, ...clientSectors.map((s) => ({ value: s.id, label: s.name }))]}
+            render={sectorName}
+          />
+        )}
         <SelectField
           label="Priority"
           fieldKey="priority"

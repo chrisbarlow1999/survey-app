@@ -4,7 +4,7 @@
 // is simply ignored by the Board, which orders by column.
 export function ProjectViewTabs({ current, params }) {
   const carried = new URLSearchParams();
-  ['q', 'client', 'status', 'owner', 'archived', 'sort'].forEach((k) => {
+  ['q', 'client', 'sector', 'status', 'owner', 'archived', 'sort'].forEach((k) => {
     if (params?.[k]) carried.set(k, params[k]);
   });
   const qs = carried.toString();

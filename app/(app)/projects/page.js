@@ -10,6 +10,7 @@ import { ProjectViewTabs } from '../../../components/ProjectViewTabs';
 import { ExportCsvButton } from '../../../components/ExportCsvButton';
 import { screenTotals, screenLabel } from '../../../lib/screenCount';
 import { valueTotals, formatGBPShort } from '../../../lib/money';
+import { SECTOR_EMBED, loadSectors, projectClientLabel } from '../../../lib/sectors';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,24 +18,26 @@ export default async function ProjectsPage({ searchParams }) {
   const params = (await searchParams) || {};
   const q = (params.q || '').trim();
   const clientId = params.client || '';
+  const sectorId = params.sector || '';
   const status = params.status || '';
   const owner = params.owner || '';
   const archived = params.archived || '';
   const sort = resolveProjectSort(params.sort);
   const page = parsePage(params.page);
-  const hasFilters = Boolean(q || clientId || status || owner || archived || params.sort);
+  const hasFilters = Boolean(q || clientId || sectorId || status || owner || archived || params.sort);
 
   const supabase = await createClient();
 
   let query = supabase
     .from('projects')
     .select(
-      'id, title, reference, site_location, status, priority, due_date, install_date, source, created_at, archived_at, client_id, screen_count, value_gbp, clients(id, name), owner:profiles!owner_id(id, full_name, email)',
+      `id, title, reference, site_location, status, priority, due_date, install_date, source, created_at, archived_at, client_id, screen_count, value_gbp, clients(id, name), ${SECTOR_EMBED}, owner:profiles!owner_id(id, full_name, email)`,
       { count: 'exact' }
     );
 
   query = applyArchiveFilter(query, archived);
   if (clientId) query = query.eq('client_id', clientId);
+  if (sectorId) query = query.eq('sector_id', sectorId);
   if (status) query = query.eq('status', status);
   // 'none' is a real filter, not an empty one — "what has nobody picked up?"
   if (owner === 'none') query = query.is('owner_id', null);
@@ -51,18 +54,21 @@ export default async function ProjectsPage({ searchParams }) {
 
   // The stats row deliberately counts open work rather than "this month" — a
   // project list is about what's outstanding, not throughput.
-  const [{ data: projects, error, count }, { data: clients }, { data: statsRows }, { data: openTasks }, { data: owners }] = await Promise.all([
+  const [{ data: projects, error, count }, { data: clients }, { data: statsRows }, { data: openTasks }, { data: owners }, sectors] = await Promise.all([
     query,
     supabase.from('clients').select('id, name').order('name', { ascending: true }),
-    supabase.from('projects').select('status, screen_count, value_gbp, clients(name)').is('archived_at', null),
+    supabase.from('projects').select(`status, screen_count, value_gbp, clients(name), ${SECTOR_EMBED}`).is('archived_at', null),
     supabase.from('project_tasks').select('id').is('completed_at', null),
     supabase.from('profiles').select('id, full_name, email').in('role', ['user', 'super_admin']).eq('active', true).order('full_name', { ascending: true }),
+    loadSectors(supabase),
   ]);
 
   const allOpen = (statsRows || []).filter((r) => !isClosed(r.status));
   const byClient = {};
   allOpen.forEach((r) => {
-    const name = r.clients?.name || 'Unassigned';
+    // Split by sector where there is one — "Compass · 40" says nothing about
+    // where the work is when Eurest and Levy are run by different people.
+    const name = projectClientLabel(r) || 'Unassigned';
     byClient[name] = (byClient[name] || 0) + 1;
   });
   const clientStats = Object.entries(byClient).sort((a, b) => b[1] - a[1]);
@@ -111,12 +117,12 @@ export default async function ProjectsPage({ searchParams }) {
         )}
       </div>
 
-      <ProjectFilters params={params} clients={clients} owners={owners} basePath="/projects" />
+      <ProjectFilters params={params} clients={clients} sectors={sectors} owners={owners} basePath="/projects" />
 
       <div className="panel" style={{ padding: '12px 16px' }}>
         <div className="toolbar" style={{ margin: '0 0 10px' }}>
           <a className="btn btn-primary" href="/projects/new">+ New Project</a>
-          <ExportCsvButton kind="projects" filters={{ q, clientId, status, owner, archived }} />
+          <ExportCsvButton kind="projects" filters={{ q, clientId, sectorId, status, owner, archived }} />
         </div>
         {error && <p className="error-text">Could not load projects: {error.message}</p>}
         {!error && (!projects || projects.length === 0) && (
@@ -133,7 +139,7 @@ export default async function ProjectsPage({ searchParams }) {
             <div>
               <div className="site">
                 {p.title}
-                {p.clients?.name ? <span className="client-badge">{p.clients.name}</span> : null}
+                {p.clients?.name ? <span className="client-badge">{projectClientLabel(p)}</span> : null}
                 {p.source === 'intake' ? <span className="client-badge intake-badge">Request</span> : null}
                 {p.archived_at ? <span className="client-badge archived-badge">Archived</span> : null}
               </div>

@@ -12,6 +12,7 @@ import { surveyInclusion, screenCountOf } from '../../../../lib/surveyScreens';
 import { SurveyCountPanel } from '../../../../components/SurveyCountPanel';
 import { ProjectClientPanel } from '../../../../components/ProjectClientPanel';
 import { ProjectSitesPanel } from '../../../../components/ProjectSitesPanel';
+import { loadSectors } from '../../../../lib/sectors';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,7 @@ export default async function ProjectPage({ params, searchParams }) {
     { data: clients },
     { data: owners },
     { data: siteRows, error: sitesError },
+    sectors,
   ] = await Promise.all([
     supabase
       .from('project_tasks')
@@ -78,6 +80,7 @@ export default async function ProjectPage({ params, searchParams }) {
     // Errors (rather than returning nothing) until migration 044 is run; the
     // Sites panel is simply left off in that case.
     supabase.from('project_sites').select('*').eq('project_id', id).order('position', { ascending: true }).order('created_at', { ascending: true }),
+    loadSectors(supabase),
   ]);
 
   const sites = await Promise.all(
@@ -165,6 +168,7 @@ export default async function ProjectPage({ params, searchParams }) {
       <ProjectDetailsPanel
         project={project}
         clients={clients || []}
+        sectors={sectors}
         owners={owners || []}
         actorName={actorName}
         canEdit={canEdit}

@@ -9,6 +9,7 @@ import { projectHref } from '../../../../lib/projectBackLink';
 import { screenTotals } from '../../../../lib/screenCount';
 import { engineerDays } from '../../../../lib/surveyScreens';
 import { buildMonthGrid, startOfWeek, addDays, startOfMonth, todayIso } from '../../../../lib/installCalendar';
+import { loadSectors, projectClientLabel } from '../../../../lib/sectors';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
   const params = (await searchParams) || {};
   const q = (params.q || '').trim();
   const clientId = params.client || '';
+  const sectorId = params.sector || '';
   const status = params.status || '';
   const owner = params.owner || '';
   const archived = params.archived || '';
@@ -43,6 +45,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
   function applyFilters(query) {
     let out = applyArchiveFilter(query, archived);
     if (clientId) out = out.eq('client_id', clientId);
+    if (sectorId) out = out.eq('sector_id', sectorId);
     if (status) out = out.eq('status', status);
     if (owner === 'none') out = out.is('owner_id', null);
     else if (owner) out = out.eq('owner_id', owner);
@@ -58,12 +61,12 @@ export default async function ProjectSchedulePage({ searchParams }) {
   // One row per install job (migration 046): a booked site, or a project with
   // no sites. A project with sites only ever appears through its sites, so a
   // rollout's three installs land on their own three days.
-  const SELECT = 'job_key, project_id, site_id, title, reference, site_location, status, site_status, client_id, owner_id, install_date, install_company, install_start_time, install_end_time, screen_count';
+  const SELECT = 'job_key, project_id, site_id, title, reference, site_location, status, site_status, client_id, sector_id, owner_id, install_date, install_company, install_start_time, install_end_time, screen_count';
   const closed = `(${CLOSED_STATUSES.join(',')})`;
   // A site that's installed or cancelled is done, whatever the project says.
   const siteDone = (j) => j.site_status === 'installed' || j.site_status === 'cancelled';
 
-  const [{ data: booked, error }, { data: clients }, { data: owners }, { data: lateRows }, { data: unbookedRows }] =
+  const [{ data: booked, error }, { data: clients }, { data: owners }, { data: lateRows }, { data: unbookedRows }, sectors] =
     await Promise.all([
       applyFilters(supabase.from('install_jobs').select(SELECT))
         .gte('install_date', range.from)
@@ -84,12 +87,18 @@ export default async function ProjectSchedulePage({ searchParams }) {
       applyFilters(supabase.from('install_jobs').select('job_key, site_status'))
         .is('install_date', null)
         .not('status', 'in', closed),
+      loadSectors(supabase),
     ]);
 
-  // Client names by id: the view carries client_id only, since embedding
-  // through a union view isn't something PostgREST can work out.
+  // Client and sector names by id: the view carries the ids only, since
+  // embedding through a union view isn't something PostgREST can work out.
   const clientName = Object.fromEntries((clients || []).map((c) => [c.id, c.name]));
-  const withClient = (j) => ({ ...j, clients: { id: j.client_id, name: clientName[j.client_id] } });
+  const sectorName = Object.fromEntries(sectors.map((s) => [s.id, s.name]));
+  const withClient = (j) => ({
+    ...j,
+    clients: { id: j.client_id, name: clientName[j.client_id] },
+    sector: j.sector_id ? { id: j.sector_id, name: sectorName[j.sector_id] } : null,
+  });
 
   const rows = (booked || []).map(withClient);
   const late = (lateRows || []).filter((j) => !siteDone(j)).map(withClient);
@@ -124,7 +133,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
 
   function toggleHref(nextView) {
     const sp = new URLSearchParams();
-    ['q', 'client', 'status', 'owner', 'archived'].forEach((k) => {
+    ['q', 'client', 'sector', 'status', 'owner', 'archived'].forEach((k) => {
       if (params[k]) sp.set(k, params[k]);
     });
     sp.set('view', nextView);
@@ -172,7 +181,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
         </div>
       </div>
 
-      <ProjectFilters params={params} clients={clients} owners={owners} basePath="/projects/schedule" showSort={false} />
+      <ProjectFilters params={params} clients={clients} sectors={sectors} owners={owners} basePath="/projects/schedule" showSort={false} />
 
       <div className="view-tabs" style={{ marginBottom: 14 }}>
         <a className={view === 'month' ? 'on' : ''} href={toggleHref('month')}>Month</a>
@@ -191,7 +200,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
               <div>
                 <div className="site">
                   {p.title}
-                  {p.clients?.name ? <span className="client-badge">{p.clients.name}</span> : null}
+                  {p.clients?.name ? <span className="client-badge">{projectClientLabel(p)}</span> : null}
                 </div>
                 <div className="meta">
                   {p.site_location || 'No site set'} · {p.install_company || 'No firm booked'}

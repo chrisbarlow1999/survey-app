@@ -5,6 +5,7 @@ import { ProjectViewTabs } from '../../../../components/ProjectViewTabs';
 import { ProjectFilters } from '../../../../components/ProjectFilters';
 import { screenTotals } from '../../../../lib/screenCount';
 import { screensFromSurveys, screenMix, mountMix, surveyInclusion } from '../../../../lib/surveyScreens';
+import { loadSectors } from '../../../../lib/sectors';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,16 +20,18 @@ export default async function ProjectScreensPage({ searchParams }) {
   const params = (await searchParams) || {};
   const q = (params.q || '').trim();
   const clientId = params.client || '';
+  const sectorId = params.sector || '';
   const status = params.status || '';
   const owner = params.owner || '';
   const archived = params.archived || '';
-  const hasFilters = Boolean(q || clientId || status || owner || archived);
+  const hasFilters = Boolean(q || clientId || sectorId || status || owner || archived);
 
   const supabase = await createClient();
 
   function applyFilters(query) {
     let out = applyArchiveFilter(query, archived);
     if (clientId) out = out.eq('client_id', clientId);
+    if (sectorId) out = out.eq('sector_id', sectorId);
     if (status) out = out.eq('status', status);
     if (owner === 'none') out = out.is('owner_id', null);
     else if (owner) out = out.eq('owner_id', owner);
@@ -41,7 +44,7 @@ export default async function ProjectScreensPage({ searchParams }) {
     return out;
   }
 
-  const [{ data: projects, error }, { data: clients }, { data: owners }, { count: orphanSurveys }] =
+  const [{ data: projects, error }, { data: clients }, { data: owners }, { count: orphanSurveys }, sectors] =
     await Promise.all([
       applyFilters(supabase.from('projects').select('id, title, status, screen_count')),
       supabase.from('clients').select('id, name').order('name', { ascending: true }),
@@ -51,6 +54,7 @@ export default async function ProjectScreensPage({ searchParams }) {
       // report that's wrong.
       supabase.from('surveys').select('id', { count: 'exact', head: true })
         .is('project_id', null).is('archived_at', null),
+      loadSectors(supabase),
     ]);
 
   const rows = projects || [];
@@ -111,7 +115,7 @@ export default async function ProjectScreensPage({ searchParams }) {
         </div>
       </div>
 
-      <ProjectFilters params={params} clients={clients} owners={owners} basePath="/projects/screens" showSort={false} />
+      <ProjectFilters params={params} clients={clients} sectors={sectors} owners={owners} basePath="/projects/screens" showSort={false} />
 
       {error && (
         <div className="panel"><p className="error-text">Could not load projects: {error.message}</p></div>

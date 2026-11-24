@@ -353,6 +353,14 @@ hand-synced copies.
     step with its next booked site. Existing project bookings are copied onto
     their sites. See **Multi-site projects**.
 
+54. Also run `supabase/047_client_sectors.sql` — sectors within a client
+    (`client_sectors`, plus `projects.sector_id`), so Compass can be split into
+    Eurest, Levy, Chartwells and the rest. Super admins add them under
+    Admin → Clients; projects pick one on the project page or the New Project
+    form, and every project view can filter by it. A trigger keeps a project's
+    sector to its own client's (changing client clears it), and the request
+    form can't set one. **Required** — the project pages error until it's run.
+
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
 and no markers, so **delete existing surveys and install confirmations** rather

@@ -8,6 +8,7 @@ import { formatDate } from '../lib/formatDate';
 import { PROJECT_STATUSES, statusLabel } from '../lib/projectStatus';
 import { screenTotals } from '../lib/screenCount';
 import { projectHref } from '../lib/projectBackLink';
+import { projectClientLabel } from '../lib/sectors';
 
 // Kanban board, one column per status. Drag a card to a new column to move the
 // project — the same thing as changing its status on the detail page, and it
@@ -139,7 +140,7 @@ export function ProjectBoard({ projects, actorName, canEdit, params }) {
         onDragEnd={() => { setDragId(null); setOverStatus(null); }}
       >
         <div className="board-card-tags">
-          {p.clients?.name && <span className="client-badge">{p.clients.name}</span>}
+          {p.clients?.name && <span className="client-badge">{projectClientLabel(p)}</span>}
           {p.source === 'intake' && <span className="client-badge intake-badge">Request</span>}
         </div>
         {/* Carries the board and its filters, so the project's back link

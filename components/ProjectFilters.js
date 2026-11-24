@@ -1,6 +1,24 @@
 import { ArchiveFilter } from './ArchiveFilter';
 import { PROJECT_STATUSES } from '../lib/projectStatus';
 import { PROJECT_SORT_OPTIONS, resolveProjectSort } from '../lib/listQuery';
+import { groupSectors } from '../lib/sectors';
+
+// Sector filter, grouped by client. Left off entirely while no client has
+// sectors set up, so Starbucks-only users never see an empty dropdown. Shared
+// with the board, which has its own shorter filter bar.
+export function SectorSelect({ groups, value }) {
+  if (!groups.length) return null;
+  return (
+    <select name="sector" defaultValue={value} title="Sector">
+      <option value="">All Sectors</option>
+      {groups.map((g) => (
+        <optgroup key={g.client_id} label={g.client_name}>
+          {g.sectors.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
 
 // The filter bar shared by the List and Table views. Pulled out when the second
 // view arrived — two hand-maintained copies of the same six controls is how a
@@ -12,14 +30,17 @@ import { PROJECT_SORT_OPTIONS, resolveProjectSort } from '../lib/listQuery';
 // result set.
 // showSort is off for the views that impose their own order — a Sort dropdown
 // on a calendar would be a control that does nothing.
-export function ProjectFilters({ params, clients, owners, basePath, showSort = true }) {
+export function ProjectFilters({ params, clients, sectors = [], owners, basePath, showSort = true }) {
   const q = (params?.q || '').trim();
   const clientId = params?.client || '';
+  const sectorId = params?.sector || '';
   const status = params?.status || '';
   const owner = params?.owner || '';
   const archived = params?.archived || '';
   const sort = resolveProjectSort(params?.sort);
-  const hasFilters = Boolean(q || clientId || status || owner || archived || params?.sort);
+  const hasFilters = Boolean(q || clientId || sectorId || status || owner || archived || params?.sort);
+  // With a client picked, only its sectors are worth offering.
+  const sectorGroups = groupSectors(clientId ? sectors.filter((s) => s.client_id === clientId) : sectors);
 
   return (
     <div className="panel" style={{ padding: '16px' }}>
@@ -31,6 +52,7 @@ export function ProjectFilters({ params, clients, owners, basePath, showSort = t
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
+        <SectorSelect groups={sectorGroups} value={sectorId} />
         <select name="status" defaultValue={status}>
           <option value="">All Statuses</option>
           {PROJECT_STATUSES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}

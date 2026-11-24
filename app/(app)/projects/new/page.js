@@ -1,5 +1,6 @@
 import { createClient } from '../../../../lib/supabaseServer';
 import { ProjectForm } from '../../../../components/ProjectForm';
+import { loadSectors } from '../../../../lib/sectors';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,11 +17,12 @@ export default async function NewProjectPage() {
     );
   }
 
-  const [{ data: clients }, { data: owners }, { data: templates }, { data: templateTasks }] = await Promise.all([
+  const [{ data: clients }, { data: owners }, { data: templates }, { data: templateTasks }, sectors] = await Promise.all([
     supabase.from('clients').select('id, name').order('name', { ascending: true }),
     supabase.from('profiles').select('id, full_name, email').in('role', ['user', 'super_admin']).eq('active', true).order('full_name', { ascending: true }),
     supabase.from('project_templates').select('*').order('name', { ascending: true }),
     supabase.from('project_template_tasks').select('*').order('position', { ascending: true }),
+    loadSectors(supabase),
   ]);
 
   const withTasks = (templates || []).map((t) => ({
@@ -35,6 +37,7 @@ export default async function NewProjectPage() {
       <div style={{ maxWidth: 920 }}>
         <ProjectForm
           clients={clients || []}
+          sectors={sectors}
           owners={owners || []}
           templates={withTasks}
           actorName={profile?.full_name || profile?.email || 'Unknown user'}

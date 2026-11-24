@@ -10,7 +10,7 @@ import { PROJECT_STATUSES, PROJECT_PRIORITIES } from '../lib/projectStatus';
 
 // Create only. Editing happens in place on the project page itself — there is
 // no Edit screen any more, so nothing here needs an update branch.
-export function ProjectForm({ clients, owners, templates, actorName, userId }) {
+export function ProjectForm({ clients, sectors = [], owners, templates, actorName, userId }) {
   const supabase = createClient();
   const router = useRouter();
 
@@ -18,6 +18,7 @@ export function ProjectForm({ clients, owners, templates, actorName, userId }) {
     title: '',
     reference: '',
     clientId: '',
+    sectorId: '',
     siteLocation: '',
     address: '',
     description: '',
@@ -40,6 +41,7 @@ export function ProjectForm({ clients, owners, templates, actorName, userId }) {
 
   // Templates scoped to the chosen client, plus the all-client ones.
   const availableTemplates = templates.filter((t) => !t.client_id || t.client_id === form.clientId);
+  const clientSectors = sectors.filter((s) => s.client_id === form.clientId);
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -59,6 +61,9 @@ export function ProjectForm({ clients, owners, templates, actorName, userId }) {
         title: form.title,
         reference: form.reference || null,
         client_id: form.clientId,
+        // Only sent when set, so creating a project still works before
+        // migration 047 adds the column.
+        ...(form.sectorId ? { sector_id: form.sectorId } : {}),
         site_location: form.siteLocation || null,
         address: form.address || null,
         description: form.description || null,
@@ -160,11 +165,24 @@ export function ProjectForm({ clients, owners, templates, actorName, userId }) {
         <div className="field-row">
           <div className="field" style={{ flex: 1, minWidth: 200 }}>
             <label className="req">Client</label>
-            <select value={form.clientId} onChange={(e) => setField('clientId', e.target.value)}>
+            <select
+              value={form.clientId}
+              // A sector belongs to one client, so a new client starts with none.
+              onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value, sectorId: '' }))}
+            >
               <option value="">Please select</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
+          {clientSectors.length > 0 && (
+            <div className="field" style={{ flex: 1, minWidth: 180 }}>
+              <label>Sector</label>
+              <select value={form.sectorId} onChange={(e) => setField('sectorId', e.target.value)}>
+                <option value="">None</option>
+                {clientSectors.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
           <div className="field" style={{ flex: 2, minWidth: 220 }}>
             <label>Site Name</label>
             <input value={form.siteLocation} onChange={(e) => setField('siteLocation', e.target.value)} />

@@ -1,5 +1,6 @@
 import { formatDate } from '../lib/formatDate';
 import { projectHref } from '../lib/projectBackLink';
+import { projectClientLabel } from '../lib/sectors';
 import {
   UNASSIGNED,
   DAY_NAMES,
@@ -31,7 +32,7 @@ function laneClass(name, index) {
 
 function navHref(basePath, params, patch) {
   const sp = new URLSearchParams();
-  ['q', 'client', 'status', 'owner', 'archived'].forEach((k) => {
+  ['q', 'client', 'sector', 'status', 'owner', 'archived'].forEach((k) => {
     if (params?.[k]) sp.set(k, params[k]);
   });
   Object.entries(patch).forEach(([k, v]) => {
@@ -53,7 +54,7 @@ function JobBlock({ project, params, basePath, laneCls }) {
       {/* Site and client are the point of the whole view: this is what lets
           you see that SCCI is already in Nottingham that day. */}
       <span className="cal-job-meta">
-        {[project.site_location, project.clients?.name].filter(Boolean).join(' · ') || 'No site set'}
+        {[project.site_location, projectClientLabel(project)].filter(Boolean).join(' · ') || 'No site set'}
       </span>
       {project.screen_count != null && (
         <span className="cal-job-meta">{project.screen_count} screen{project.screen_count === 1 ? '' : 's'}</span>

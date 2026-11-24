@@ -1,6 +1,8 @@
 import { createClient } from '../../../../lib/supabaseServer';
 import { ProjectBoard } from '../../../../components/ProjectBoard';
 import { ProjectViewTabs } from '../../../../components/ProjectViewTabs';
+import { SectorSelect } from '../../../../components/ProjectFilters';
+import { SECTOR_EMBED, loadSectors, groupSectors } from '../../../../lib/sectors';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,16 +14,18 @@ export default async function ProjectBoardPage({ searchParams }) {
   const params = (await searchParams) || {};
   const q = (params.q || '').trim();
   const clientId = params.client || '';
+  const sectorId = params.sector || '';
   const owner = params.owner || '';
 
   const supabase = await createClient();
 
   let query = supabase
     .from('projects')
-    .select('id, title, site_location, status, due_date, install_date, source, created_at, client_id, screen_count, value_gbp, clients(id, name), owner:profiles!owner_id(id, full_name, email)')
+    .select(`id, title, site_location, status, due_date, install_date, source, created_at, client_id, screen_count, value_gbp, clients(id, name), ${SECTOR_EMBED}, owner:profiles!owner_id(id, full_name, email)`)
     .is('archived_at', null);
 
   if (clientId) query = query.eq('client_id', clientId);
+  if (sectorId) query = query.eq('sector_id', sectorId);
   if (owner === 'none') query = query.is('owner_id', null);
   else if (owner) query = query.eq('owner_id', owner);
   if (q) {
@@ -29,7 +33,7 @@ export default async function ProjectBoardPage({ searchParams }) {
     query = query.or(`title.ilike."%${safeQ}%",reference.ilike."%${safeQ}%",site_location.ilike."%${safeQ}%"`);
   }
 
-  const [{ data: projects, error }, { data: clients }, { data: owners }, { data: { user } }] = await Promise.all([
+  const [{ data: projects, error }, { data: clients }, { data: owners }, { data: { user } }, sectors] = await Promise.all([
     query
       // Hand-placed cards first, in the order they were put in. A column
       // nobody has touched is all nulls, so it falls through to the original
@@ -41,6 +45,7 @@ export default async function ProjectBoardPage({ searchParams }) {
     supabase.from('clients').select('id, name').order('name', { ascending: true }),
     supabase.from('profiles').select('id, full_name, email').in('role', ['user', 'super_admin']).eq('active', true).order('full_name', { ascending: true }),
     supabase.auth.getUser(),
+    loadSectors(supabase),
   ]);
 
   const { data: myProfile } = await supabase.from('profiles').select('full_name, email, role').eq('id', user.id).single();
@@ -87,13 +92,17 @@ export default async function ProjectBoardPage({ searchParams }) {
             <option value="">All Clients</option>
             {(clients || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          <SectorSelect
+            groups={groupSectors(clientId ? sectors.filter((s) => s.client_id === clientId) : sectors)}
+            value={sectorId}
+          />
           <select name="owner" defaultValue={owner}>
             <option value="">All Owners</option>
             <option value="none">Unassigned</option>
             {(owners || []).map((o) => <option key={o.id} value={o.id}>{o.full_name || o.email}</option>)}
           </select>
           <button className="btn btn-primary" type="submit">Filter</button>
-          {(q || clientId || owner) && <a className="btn btn-ghost" href="/projects/board">Clear</a>}
+          {(q || clientId || sectorId || owner) && <a className="btn btn-ghost" href="/projects/board">Clear</a>}
           <a className="btn btn-primary" href="/projects/new" style={{ marginLeft: 'auto' }}>+ New Project</a>
         </form>
       </div>

@@ -5,9 +5,75 @@ import { createClient } from '../lib/supabaseClient';
 import { logAdminAction } from '../lib/logAdminAction';
 import { slugify } from '../lib/projectStatus';
 
-export function ClientManagementPanel({ initialClients }) {
+// A client's sectors (migration 047): add, rename by clicking, remove. Deleting
+// a sector un-sectors its projects rather than touching them.
+function SectorList({ client, sectors, setSectors }) {
+  const supabase = createClient();
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const mine = sectors.filter((s) => s.client_id === client.id).sort((a, b) => a.name.localeCompare(b.name));
+
+  async function add(e) {
+    e.preventDefault();
+    const n = name.trim();
+    if (!n) return;
+    setBusy(true);
+    const { data, error } = await supabase.from('client_sectors').insert({ client_id: client.id, name: n }).select('id, client_id, name').single();
+    setBusy(false);
+    if (error) {
+      alert(error.code === '23505' ? `${client.name} already has a sector called "${n}".` : 'Could not add that sector.');
+      return;
+    }
+    setSectors((list) => [...list, data]);
+    setName('');
+    logAdminAction(supabase, 'create_sector', `${client.name} · ${n}`);
+  }
+
+  async function rename(s) {
+    const n = (window.prompt(`Rename sector "${s.name}"`, s.name) || '').trim();
+    if (!n || n === s.name) return;
+    const { error } = await supabase.from('client_sectors').update({ name: n }).eq('id', s.id);
+    if (error) {
+      alert(error.code === '23505' ? `${client.name} already has a sector called "${n}".` : 'Could not rename that sector.');
+      return;
+    }
+    setSectors((list) => list.map((x) => (x.id === s.id ? { ...x, name: n } : x)));
+    logAdminAction(supabase, 'rename_sector', `${client.name} · ${n}`, { from: s.name });
+  }
+
+  async function remove(s) {
+    if (!confirm(`Remove sector "${s.name}" from ${client.name}? Its projects stay, just without a sector.`)) return;
+    const { error } = await supabase.from('client_sectors').delete().eq('id', s.id);
+    if (error) {
+      alert('Could not remove that sector.');
+      return;
+    }
+    setSectors((list) => list.filter((x) => x.id !== s.id));
+    logAdminAction(supabase, 'delete_sector', `${client.name} · ${s.name}`);
+  }
+
+  return (
+    <div className="sector-list">
+      <span className="sector-list-label">Sectors</span>
+      {mine.length === 0 && <span className="sector-list-empty">None</span>}
+      {mine.map((s) => (
+        <span key={s.id} className="client-badge sector-chip">
+          <button type="button" className="sector-chip-name" onClick={() => rename(s)} title="Click to rename">{s.name}</button>
+          <button type="button" className="sector-chip-x" onClick={() => remove(s)} aria-label={`Remove ${s.name}`}>×</button>
+        </span>
+      ))}
+      <form onSubmit={add} className="sector-add">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Add a sector…" maxLength={80} />
+        <button className="btn btn-ghost" type="submit" disabled={busy || !name.trim()}>Add</button>
+      </form>
+    </div>
+  );
+}
+
+export function ClientManagementPanel({ initialClients, initialSectors = [], sectorsEnabled = false }) {
   const supabase = createClient();
   const [clients, setClients] = useState(initialClients);
+  const [sectors, setSectors] = useState(initialSectors);
   const [newName, setNewName] = useState('');
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
@@ -180,6 +246,7 @@ export function ClientManagementPanel({ initialClients }) {
                         No request link yet — add one under Edit.
                       </div>
                     )}
+                    {sectorsEnabled && <SectorList client={c} sectors={sectors} setSectors={setSectors} />}
                   </div>
                   {c.slug && (
                     <button className="btn btn-ghost" type="button" onClick={() => copyLink(c)}>

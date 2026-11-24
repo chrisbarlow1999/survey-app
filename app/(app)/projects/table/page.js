@@ -8,6 +8,7 @@ import { ProjectTable } from '../../../../components/ProjectTable';
 import { ExportCsvButton } from '../../../../components/ExportCsvButton';
 import { screenTotals } from '../../../../lib/screenCount';
 import { valueTotals, formatGBPShort } from '../../../../lib/money';
+import { SECTOR_EMBED, loadSectors } from '../../../../lib/sectors';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,12 +19,13 @@ export default async function ProjectsTablePage({ searchParams }) {
   const params = (await searchParams) || {};
   const q = (params.q || '').trim();
   const clientId = params.client || '';
+  const sectorId = params.sector || '';
   const status = params.status || '';
   const owner = params.owner || '';
   const archived = params.archived || '';
   const sort = resolveProjectSort(params.sort);
   const page = parsePage(params.page);
-  const hasFilters = Boolean(q || clientId || status || owner || archived || params.sort);
+  const hasFilters = Boolean(q || clientId || sectorId || status || owner || archived || params.sort);
 
   const supabase = await createClient();
 
@@ -41,6 +43,7 @@ export default async function ProjectsTablePage({ searchParams }) {
   function applyFilters(query) {
     let out = applyArchiveFilter(query, archived);
     if (clientId) out = out.eq('client_id', clientId);
+    if (sectorId) out = out.eq('sector_id', sectorId);
     if (status) out = out.eq('status', status);
     if (owner === 'none') out = out.is('owner_id', null);
     else if (owner) out = out.eq('owner_id', owner);
@@ -57,7 +60,7 @@ export default async function ProjectsTablePage({ searchParams }) {
     supabase
       .from('projects')
       .select(
-        'id, title, reference, site_location, status, priority, due_date, install_date, screen_count, value_gbp, source, created_at, archived_at, client_id, clients(id, name), owner:profiles!owner_id(id, full_name, email)',
+        `id, title, reference, site_location, status, priority, due_date, install_date, screen_count, value_gbp, source, created_at, archived_at, client_id, clients(id, name), ${SECTOR_EMBED}, owner:profiles!owner_id(id, full_name, email)`,
         { count: 'exact' }
       )
   )
@@ -68,12 +71,13 @@ export default async function ProjectsTablePage({ searchParams }) {
   // the figure someone would actually quote off the back of a filter.
   const totalsQuery = applyFilters(supabase.from('projects').select('screen_count, value_gbp'));
 
-  const [{ data: projects, error, count }, { data: clients }, { data: owners }, { data: matching }] =
+  const [{ data: projects, error, count }, { data: clients }, { data: owners }, { data: matching }, sectors] =
     await Promise.all([
       query,
       supabase.from('clients').select('id, name').order('name', { ascending: true }),
       supabase.from('profiles').select('id, full_name, email').in('role', ['user', 'super_admin']).eq('active', true).order('full_name', { ascending: true }),
       totalsQuery,
+      loadSectors(supabase),
     ]);
 
   // Task tallies live in another table. Fetched for the visible page in one
@@ -139,12 +143,12 @@ export default async function ProjectsTablePage({ searchParams }) {
         </div>
       </div>
 
-      <ProjectFilters params={params} clients={clients} owners={owners} basePath="/projects/table" />
+      <ProjectFilters params={params} clients={clients} sectors={sectors} owners={owners} basePath="/projects/table" />
 
       <div className="panel" style={{ padding: '12px 16px' }}>
         <div className="toolbar" style={{ margin: '0 0 10px' }}>
           <a className="btn btn-primary" href="/projects/new">+ New Project</a>
-          <ExportCsvButton kind="projects" filters={{ q, clientId, status, owner, archived }} />
+          <ExportCsvButton kind="projects" filters={{ q, clientId, sectorId, status, owner, archived }} />
         </div>
         {error && <p className="error-text">Could not load projects: {error.message}</p>}
         {!error && withTasks.length === 0 && (

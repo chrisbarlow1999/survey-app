@@ -591,6 +591,16 @@ a.attachment-name:hover{text-decoration:underline;}
 }
 .client-row-name{font-family:var(--font-display);font-weight:600;font-size:14px;}
 .client-row-email{font-size:12.5px;color:var(--text-tertiary);margin-top:2px;}
+.sector-list{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.sector-list-label{font-size:11.5px;color:var(--text-tertiary);font-family:var(--font-mono);margin-right:2px;}
+.sector-list-empty{font-size:12px;color:var(--text-tertiary);}
+.sector-chip{display:inline-flex;align-items:center;gap:2px;padding:2px 4px 2px 9px;}
+.sector-chip button{background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:0;}
+.sector-chip-x{width:18px;height:18px;line-height:18px;border-radius:50%;opacity:.7;}
+.sector-chip-x:hover{opacity:1;background:var(--surface-hover);}
+.sector-add{display:inline-flex;gap:6px;align-items:center;}
+.sector-add input{width:150px;padding:4px 8px;font-size:12.5px;}
+.sector-add .btn{padding:4px 10px;font-size:12px;}
 
 .user-table{display:flex;flex-direction:column;gap:10px;}
 .user-row{border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 18px;background:var(--surface);}
