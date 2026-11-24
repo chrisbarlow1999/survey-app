@@ -1,5 +1,5 @@
 import { createClient } from '../../../../lib/supabaseServer';
-import { SCREEN_SIZES } from '../../../../lib/screenSizes';
+import { loadHardware, screenInfo, screenDims } from '../../../../lib/hardware';
 import { BlueprintDiagram } from '../../../../components/BlueprintDiagram';
 import { PhotoWithOverlay } from '../../../../components/PhotoWithOverlay';
 import { DeleteSurveyButton } from '../../../../components/DeleteSurveyButton';
@@ -43,6 +43,7 @@ export default async function ReportPage({ params }) {
   const { data: { user } } = await supabase.auth.getUser();
   const { data: myProfile } = await supabase.from('profiles').select('full_name, email, role').eq('id', user.id).single();
   const canEdit = myProfile?.role !== 'client_viewer';
+  const hw = await loadHardware(supabase);
   const actorName = myProfile?.full_name || myProfile?.email || 'Unknown user';
 
   // Only same-client projects are offered by the link picker below.
@@ -233,9 +234,8 @@ export default async function ReportPage({ params }) {
         Screen Areas ({locationsWithUrls.length})
       </h2>
       {locationsWithUrls.map((area, i) => {
-        const sizeInfo = SCREEN_SIZES[area.screen_size];
-        const wmm = area.screen_size === 'other' ? (Number(area.custom_w) || null) : sizeInfo?.wmm;
-        const hmm = area.screen_size === 'other' ? (Number(area.custom_h) || null) : sizeInfo?.hmm;
+        const sizeInfo = screenInfo(hw, area.screen_size);
+        const { wmm, hmm } = screenDims(hw, area.screen_size, area.custom_w, area.custom_h);
         const screens = area.screens || [];
         return (
           <div className="report-loc" key={i}>

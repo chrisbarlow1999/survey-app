@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '../lib/supabaseClient';
 import { toCsv } from '../lib/toCsv';
-import { SCREEN_SIZES } from '../lib/screenSizes';
+import { loadHardware, screenInfo } from '../lib/hardware';
 import { formatDate, formatDateTime } from '../lib/formatDate';
 import { applyArchiveFilter } from './ArchiveFilter';
 import { statusLabel, priorityLabel } from '../lib/projectStatus';
@@ -40,7 +40,7 @@ const VISIT_HEADERS = [
 
 // One row per screen, so an area with three screens produces three lines with
 // the area columns repeated — that's what makes the export pivotable.
-function surveyRows(surveys) {
+function surveyRows(surveys, hw) {
   const rows = [];
   for (const s of surveys) {
     const base = [
@@ -55,7 +55,7 @@ function surveyRows(surveys) {
       continue;
     }
     areas.forEach((area, i) => {
-      const sizeInfo = SCREEN_SIZES[area.screen_size];
+      const sizeInfo = screenInfo(hw, area.screen_size);
       const areaCols = [
         i + 1,
         area.area_name || '',
@@ -259,7 +259,9 @@ export function ExportCsvButton({ kind, filters }) {
       }
 
       const rows = config.enrich ? await config.enrich(supabase, data) : data;
-      const csv = toCsv(config.headers, config.buildRows(rows));
+      // Only surveys name hardware; the other kinds ignore the second argument.
+      const hw = kind === 'surveys' ? await loadHardware(supabase) : null;
+      const csv = toCsv(config.headers, config.buildRows(rows, hw));
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

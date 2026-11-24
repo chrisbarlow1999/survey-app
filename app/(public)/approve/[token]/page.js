@@ -4,7 +4,8 @@ import { use, useEffect, useState } from 'react';
 import { createClient } from '../../../../lib/supabaseClient';
 import { PhotoWithOverlay } from '../../../../components/PhotoWithOverlay';
 import { BlueprintDiagram } from '../../../../components/BlueprintDiagram';
-import { SCREEN_SIZES } from '../../../../lib/screenSizes';
+import { screenInfo, screenDims } from '../../../../lib/hardware';
+import { useHardware } from '../../../../lib/useHardware';
 import { formatDate, formatDateTime } from '../../../../lib/formatDate';
 import { formatBytes } from '../../../../lib/formatBytes';
 
@@ -37,6 +38,7 @@ function fileUrl(token, path) {
 export default function ApprovalPage({ params }) {
   const { token } = use(params);
   const supabase = createClient();
+  const hw = useHardware();
 
   const [survey, setSurvey] = useState(null);
   const [lookupDone, setLookupDone] = useState(false);
@@ -194,11 +196,10 @@ export default function ApprovalPage({ params }) {
       )}
 
       {areas.map((area, i) => {
-        const sizeInfo = SCREEN_SIZES[area.screen_size];
+        const sizeInfo = screenInfo(hw, area.screen_size);
         // Custom LED walls carry their own dimensions; everything else takes
         // them from the model — the same rule the internal report uses.
-        const wmm = area.screen_size === 'other' ? (Number(area.custom_w) || null) : sizeInfo?.wmm;
-        const hmm = area.screen_size === 'other' ? (Number(area.custom_h) || null) : sizeInfo?.hmm;
+        const { wmm, hmm } = screenDims(hw, area.screen_size, area.custom_w, area.custom_h);
         const screens = area.screens || [];
         const extras = area.additional_photos || [];
         const hasAnyPhoto = Boolean(area.photo_path) || extras.length > 0;

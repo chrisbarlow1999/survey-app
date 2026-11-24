@@ -3,7 +3,8 @@
 import { use, useEffect, useState } from 'react';
 import { createClient } from '../../../../lib/supabaseClient';
 import { compressImage } from '../../../../lib/compressImage';
-import { SCREEN_SIZES } from '../../../../lib/screenSizes';
+import { screenOptions } from '../../../../lib/hardware';
+import { useHardware } from '../../../../lib/useHardware';
 import {
   AREA_STEPS, WALL_TYPES, POWER_DISTANCES, DATA_OPTIONS, OBSTRUCTIONS,
   freshSelfArea, selfAreaToDraft, selfAreaFromDraft, selfAreaToStored,
@@ -70,6 +71,7 @@ function PhotoField({ label, preview, onPick, onClear, required }) {
 export default function SelfSurveyPage({ params }) {
   const { link } = use(params);
   const supabase = createClient();
+  const hw = useHardware();
   const draftKey = `self-survey-link-${link}`;
 
   // { title, client_name, eligible, site_name, address, manager_name, ... }
@@ -498,7 +500,7 @@ export default function SelfSurveyPage({ params }) {
                     <label>Screen size</label>
                     <select value={area.sizeKey} onChange={(e) => updateArea(ai, { sizeKey: e.target.value })}>
                       <option value="">Not sure — recommend one</option>
-                      {Object.entries(SCREEN_SIZES).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}
+                      {screenOptions(hw, area.sizeKey).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                   </div>
                   <div className="field">

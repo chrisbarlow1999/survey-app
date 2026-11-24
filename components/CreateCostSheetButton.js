@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
 import { seedItemsFromSurvey, sheetTotals } from '../lib/costSheet';
+import { loadHardware } from '../lib/hardware';
 
 // Builds a quote from this survey and opens it.
 //
@@ -27,16 +28,17 @@ export function CreateCostSheetButton({ survey, userId }) {
       return;
     }
 
-    const [{ data: catalogue }, { data: rates }] = await Promise.all([
+    const [{ data: catalogue }, { data: rates }, hw] = await Promise.all([
       supabase.from('price_items')
         .select('id, name, unit, default_cost, default_price, match_key')
         .eq('active', true),
       supabase.from('price_client_rates')
         .select('price_item_id, cost, price')
         .eq('client_id', survey.client_id),
+      loadHardware(supabase),
     ]);
 
-    const items = seedItemsFromSurvey(survey, catalogue || [], rates || []);
+    const items = seedItemsFromSurvey(survey, catalogue || [], rates || [], hw);
     const totals = sheetTotals(items);
 
     const { data, error: insErr } = await supabase

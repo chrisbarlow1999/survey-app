@@ -93,6 +93,8 @@ survey, and the report a client receives still says so.
 - `/admin/templates` — the starting state for a project: a task checklist plus a
   default description, priority, owner and files. Optionally auto-applied to
   projects raised through a client request link.
+- `/admin/hardware` — the screens and mounts the survey forms offer: add, edit,
+  reorder, retire. New items get a cost-sheet price line automatically.
 - `/admin/accounts` — create accounts, manage roles and client access, reset
   passwords, deactivate/reactivate.
 - `/admin/activity` — a log of who did what across the admin pages.
@@ -360,6 +362,14 @@ hand-synced copies.
     form, and every project view can filter by it. A trigger keeps a project's
     sector to its own client's (changing client clears it), and the request
     form can't set one. **Required** — the project pages error until it's run.
+
+55. Also run `supabase/048_hardware.sql` — the screens and mounts the survey
+    forms offer move into `hardware_items`, managed under Admin → Hardware
+    (add, edit, reorder, retire). Seeded with exactly the list in
+    `lib/screenSizes.js`, using the same keys, so existing surveys and cost
+    sheets resolve unchanged. Adding an item also adds its `price_items` line.
+    Optional to run before deploying — until it's run, everything falls back to
+    `lib/screenSizes.js`.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens

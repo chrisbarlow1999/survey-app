@@ -1,6 +1,7 @@
 'use client';
 
-import { SCREEN_SIZES, MOUNT_TYPES } from '../lib/screenSizes';
+import { CUSTOM_SCREEN_KEY, OTHER_MOUNT, screenOptions, mountOptions, screenDims } from '../lib/hardware';
+import { useHardware } from '../lib/useHardware';
 import { BlueprintDiagram } from './BlueprintDiagram';
 import { PhotoWithOverlay } from './PhotoWithOverlay';
 
@@ -16,7 +17,9 @@ export function AreaCard({
   onPhotoChange, onAdditionalPhotosAdd, onAdditionalPhotoRemove,
   onAddScreen, onRemoveScreen, onScreenChange,
 }) {
+  const hw = useHardware();
   const screenCount = area.screens.length;
+  const dims = screenDims(hw, area.sizeKey, area.customW, area.customH);
   return (
     <div className="loc-card">
       <div className="loc-head">
@@ -60,7 +63,7 @@ export function AreaCard({
               <label>Screen Size</label>
               <select value={area.sizeKey} onChange={(e) => onChange('sizeKey', e.target.value)}>
                 <option value="">Please select</option>
-                {Object.entries(SCREEN_SIZES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                {screenOptions(hw, area.sizeKey).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div className="field">
@@ -71,7 +74,7 @@ export function AreaCard({
               </div>
             </div>
           </div>
-          {area.sizeKey === 'other' && (
+          {area.sizeKey === CUSTOM_SCREEN_KEY && (
             <div className="field-row">
               <div className="field"><label>Custom Width (mm)</label><input type="number" value={area.customW} onChange={(e) => onChange('customW', e.target.value)} /></div>
               <div className="field"><label>Custom Height (mm)</label><input type="number" value={area.customH} onChange={(e) => onChange('customH', e.target.value)} /></div>
@@ -82,10 +85,10 @@ export function AreaCard({
               <label>Mount Type</label>
               <select value={area.mountType} onChange={(e) => onChange('mountType', e.target.value)}>
                 <option value="">Please select</option>
-                {MOUNT_TYPES.map((m) => <option key={m} value={m}>{m}</option>)}
+                {mountOptions(hw, area.mountType).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
-            {area.mountType === 'Other' && (
+            {area.mountType === OTHER_MOUNT && (
               <div className="field">
                 <label>Specify Mount Type</label>
                 <input value={area.mountTypeOther} onChange={(e) => onChange('mountTypeOther', e.target.value)} placeholder="e.g. Freestanding kiosk" />
@@ -156,8 +159,8 @@ export function AreaCard({
           </div>
         </div>
         <BlueprintDiagram
-          wmm={area.sizeKey === 'other' ? (Number(area.customW) || null) : SCREEN_SIZES[area.sizeKey]?.wmm}
-          hmm={area.sizeKey === 'other' ? (Number(area.customH) || null) : SCREEN_SIZES[area.sizeKey]?.hmm}
+          wmm={dims.wmm}
+          hmm={dims.hmm}
           orientation={area.orientation}
         />
       </div>

@@ -6,6 +6,7 @@ import { ProjectFilters } from '../../../../components/ProjectFilters';
 import { screenTotals } from '../../../../lib/screenCount';
 import { screensFromSurveys, screenMix, mountMix, surveyInclusion } from '../../../../lib/surveyScreens';
 import { loadSectors } from '../../../../lib/sectors';
+import { loadHardware } from '../../../../lib/hardware';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,7 @@ export default async function ProjectScreensPage({ searchParams }) {
     return out;
   }
 
-  const [{ data: projects, error }, { data: clients }, { data: owners }, { count: orphanSurveys }, sectors] =
+  const [{ data: projects, error }, { data: clients }, { data: owners }, { count: orphanSurveys }, sectors, hw] =
     await Promise.all([
       applyFilters(supabase.from('projects').select('id, title, status, screen_count')),
       supabase.from('clients').select('id, name').order('name', { ascending: true }),
@@ -55,6 +56,7 @@ export default async function ProjectScreensPage({ searchParams }) {
       supabase.from('surveys').select('id', { count: 'exact', head: true })
         .is('project_id', null).is('archived_at', null),
       loadSectors(supabase),
+      loadHardware(supabase),
     ]);
 
   const rows = projects || [];
@@ -83,7 +85,7 @@ export default async function ProjectScreensPage({ searchParams }) {
   // the procurement figure comes out high. A PM can overrule that per survey
   // on the project page, for a site surveyed in phases rather than re-surveyed.
   const { kept, superseded, excluded } = surveyInclusion(surveys);
-  const screens = screensFromSurveys(kept);
+  const screens = screensFromSurveys(kept, hw);
   const mix = screenMix(screens);
   const mounts = mountMix(screens);
   const specifiedProjects = new Set(screens.map((s) => s.projectId).filter(Boolean)).size;
