@@ -90,9 +90,12 @@ survey, and the report a client receives still says so.
 - `/admin/clients` — add/rename/delete clients, set each one's notification inbox.
 - `/admin/request-links` — every client's request-form link in one place, with
   copy/preview buttons, an on/off switch, and how many requests each has brought in.
-- `/admin/templates` — the starting state for a project: a task checklist plus a
-  default description, priority, owner and files. Optionally auto-applied to
-  projects raised through a client request link.
+- `/templates` (was `/admin/templates`, which now redirects) — the starting
+  state for a project: a task checklist plus a default description, priority,
+  owner and files. Optionally auto-applied to projects raised through a client
+  request link. Every internal account can see all templates; staff can add
+  their own and edit those; only super admins edit anyone's and choose the
+  auto-applied ones (migration 049).
 - `/admin/hardware` — the screens and mounts the survey forms offer: add, edit,
   reorder, retire. New items get a cost-sheet price line automatically.
 - `/admin/accounts` — create accounts, manage roles and client access, reset
@@ -370,6 +373,13 @@ hand-synced copies.
     sheets resolve unchanged. Adding an item also adds its `price_items` line.
     Optional to run before deploying — until it's run, everything falls back to
     `lib/screenSizes.js`.
+
+56. Also run `supabase/049_staff_templates.sql` — lets staff (role `user`)
+    create project templates and edit/delete the ones they created, scoped
+    only to clients they have access to. Auto-applied templates stay super-admin
+    only. Adds `project_templates.created_by` (existing templates have none, so
+    only super admins can edit them) and lets each account read its own
+    `profile_clients` rows. Until it's run, staff see templates read-only.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens

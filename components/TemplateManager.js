@@ -13,9 +13,24 @@ import { PROJECT_PRIORITIES } from '../lib/projectStatus';
 // description, priority, owner and files that should come with it. Everything
 // here saves as you change it, the same as the project page — there's no Save
 // button and no separate edit screen.
-export function TemplateManager({ templates, clients, owners }) {
+//
+// Who can change what (migration 049): super admins anything; staff only the
+// templates they created, and not once one is auto-applied. Everything else
+// renders read-only — the database refuses the writes regardless.
+export function TemplateManager({ templates, clients, scopeClients = clients, owners, userId, isSuperAdmin = false, canCreate = true }) {
   const supabase = createClient();
   const router = useRouter();
+
+  function canEdit(t) {
+    return isSuperAdmin || (Boolean(userId) && t.created_by === userId && !t.is_default);
+  }
+
+  function creatorName(t) {
+    if (!t.created_by) return null;
+    if (t.created_by === userId) return 'you';
+    const o = owners.find((x) => x.id === t.created_by);
+    return o ? (o.full_name || o.email) : 'a former user';
+  }
 
   const [newName, setNewName] = useState('');
   const [newClient, setNewClient] = useState('');
@@ -69,7 +84,7 @@ export function TemplateManager({ templates, clients, owners }) {
       setError('Could not create that template.');
       return;
     }
-    logAdminAction(supabase, 'create_project_template', name);
+    if (isSuperAdmin) logAdminAction(supabase, 'create_project_template', name);
     setNewName('');
     setNewClient('');
     setOpenId(data.id);
@@ -89,7 +104,7 @@ export function TemplateManager({ templates, clients, owners }) {
       setError('Could not delete that template.');
       return;
     }
-    logAdminAction(supabase, 'delete_project_template', t.name);
+    if (isSuperAdmin) logAdminAction(supabase, 'delete_project_template', t.name);
     router.refresh();
   }
 
@@ -218,6 +233,7 @@ export function TemplateManager({ templates, clients, owners }) {
 
   return (
     <div>
+      {canCreate && (
       <form onSubmit={addTemplate} className="field-row" style={{ alignItems: 'flex-end', marginBottom: 18 }}>
         <div className="field" style={{ flex: '2 1 220px' }}>
           <label>New Template Name</label>
@@ -227,18 +243,23 @@ export function TemplateManager({ templates, clients, owners }) {
           <label>Applies To</label>
           <select value={newClient} onChange={(e) => setNewClient(e.target.value)}>
             <option value="">All clients</option>
-            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {scopeClients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
         <button className="btn btn-primary" type="submit" disabled={busy}>Add Template</button>
       </form>
+      )}
 
       {error && <p className="error-text">{error}</p>}
 
-      {templates.length === 0 && <div className="empty-state">No templates yet — add one above.</div>}
+      {templates.length === 0 && (
+        <div className="empty-state">No templates yet{canCreate ? ' — add one above.' : '.'}</div>
+      )}
 
       {templates.map((t) => {
         const open = openId === t.id;
+        const editable = canEdit(t);
+        const by = creatorName(t);
         return (
           <div className="template-card" key={t.id}>
             <div className="template-head">
@@ -250,18 +271,32 @@ export function TemplateManager({ templates, clients, owners }) {
                 {t.client_id ? (clients.find((c) => c.id === t.client_id)?.name || 'Unknown client') : 'All clients'}
               </span>
               {t.is_default && <span className="client-badge intake-badge">Auto-applied</span>}
-              <button className="btn btn-ghost" type="button" onClick={() => toggleDefault(t)} disabled={busy}>
-                {t.is_default ? 'Stop auto-applying' : 'Auto-apply to requests'}
-              </button>
-              <button className="btn btn-danger" type="button" onClick={() => removeTemplate(t)} disabled={busy}>
-                Delete
-              </button>
+              {by && <span className="template-by">by {by}</span>}
+              {isSuperAdmin && (
+                <button className="btn btn-ghost" type="button" onClick={() => toggleDefault(t)} disabled={busy}>
+                  {t.is_default ? 'Stop auto-applying' : 'Auto-apply to requests'}
+                </button>
+              )}
+              {editable ? (
+                <button className="btn btn-danger" type="button" onClick={() => removeTemplate(t)} disabled={busy}>
+                  Delete
+                </button>
+              ) : (
+                <span className="client-badge archived-badge">View only</span>
+              )}
             </div>
 
             {open && (
               <div className="template-body">
-                <p className="hint">Everything here saves as you change it.</p>
+                <p className="hint">
+                  {editable
+                    ? 'Everything here saves as you change it.'
+                    : t.is_default
+                      ? 'This template is auto-applied to client requests, so only a super admin can change it.'
+                      : 'Only the person who created this template (or a super admin) can change it.'}
+                </p>
 
+                <fieldset disabled={!editable} className="template-fields">
                 <div className="field-row">
                   <div className="field" style={{ flex: '2 1 220px' }}>
                     <label>Template Name</label>
@@ -275,7 +310,7 @@ export function TemplateManager({ templates, clients, owners }) {
                     <label>Applies To</label>
                     <select value={valueOf(t, 'client_id') || ''} onChange={(e) => patch(t, 'client_id', e.target.value)}>
                       <option value="">All clients</option>
-                      {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {(editable ? scopeClients : clients).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                 </div>
@@ -331,11 +366,12 @@ export function TemplateManager({ templates, clients, owners }) {
                             {task.client_visible ? 'Client sees' : 'Internal'}
                           </button>
                         )}
-                        <button type="button" onClick={() => removeTask(task)} disabled={busy}>Remove</button>
+                        {editable && <button type="button" onClick={() => removeTask(task)} disabled={busy}>Remove</button>}
                       </li>
                     ))}
                   </ol>
                 )}
+                {editable && (
                 <div className="task-add-row" style={{ marginTop: 12, marginBottom: 0 }}>
                   <input
                     type="text"
@@ -356,12 +392,15 @@ export function TemplateManager({ templates, clients, owners }) {
                   />
                   <button className="btn btn-primary" type="button" onClick={() => addTask(t)} disabled={busy}>Add</button>
                 </div>
+                )}
 
                 <label className="screen-list-label" style={{ marginTop: 20 }}>Files</label>
-                <p className="hint" style={{ marginBottom: 10 }}>
-                  Copied onto every project made from this template. The file itself is shared, so
-                  removing it here leaves existing projects untouched.
-                </p>
+                {editable && (
+                  <p className="hint" style={{ marginBottom: 10 }}>
+                    Copied onto every project made from this template. The file itself is shared, so
+                    removing it here leaves existing projects untouched.
+                  </p>
+                )}
                 {(t.attachments || []).length === 0 && <div className="empty-state">No files on this template.</div>}
                 {(t.attachments || []).length > 0 && (
                   <div className="attachment-list">
@@ -369,17 +408,22 @@ export function TemplateManager({ templates, clients, owners }) {
                       <div className="attachment-row" key={a.path}>
                         <span className="attachment-name">{a.name}</span>
                         <span className="attachment-size">{formatBytes(a.size)}</span>
-                        <button type="button" className="attachment-remove" onClick={() => removeFile(t, a)} disabled={busy}>
-                          Remove
-                        </button>
+                        {editable && (
+                          <button type="button" className="attachment-remove" onClick={() => removeFile(t, a)} disabled={busy}>
+                            Remove
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
-                <label className={`attachment-add${busy ? ' busy' : ''}`}>
-                  <input type="file" multiple disabled={busy} onChange={(e) => { addFiles(t, e.target.files); e.target.value = ''; }} />
-                  <span>{busy ? 'Working…' : '+ Add files'}</span>
-                </label>
+                {editable && (
+                  <label className={`attachment-add${busy ? ' busy' : ''}`}>
+                    <input type="file" multiple disabled={busy} onChange={(e) => { addFiles(t, e.target.files); e.target.value = ''; }} />
+                    <span>{busy ? 'Working…' : '+ Add files'}</span>
+                  </label>
+                )}
+                </fieldset>
               </div>
             )}
           </div>
