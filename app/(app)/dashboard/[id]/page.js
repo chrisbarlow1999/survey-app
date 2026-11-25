@@ -129,8 +129,23 @@ export default async function ReportPage({ params }) {
         title={survey.survey_kind === 'self' ? 'Site Survey Report (client self survey)' : 'Site Survey Report'}
         siteName={survey.site_location}
         clientName={survey.clients?.name}
-      />
-
+        stats={[
+          { label: 'Survey date', value: formatDate(survey.survey_date) },
+          { label: locationsWithUrls.length === 1 ? 'Screen area' : 'Screen areas', value: locationsWithUrls.length },
+          { label: 'Screens', value: locationsWithUrls.reduce((n, a) => n + (Array.isArray(a.screens) ? a.screens.length : 1), 0) },
+        ]}
+        contents={{
+          heading: 'In this report',
+          items: locationsWithUrls.map((a, i) => {
+            const n = Array.isArray(a.screens) ? a.screens.length : 1;
+            const size = screenInfo(hw, a.screen_size)?.label;
+            return {
+              title: a.area_name || `Area ${i + 1}`,
+              detail: [`${n} screen${n === 1 ? '' : 's'}`, size, a.orientation].filter(Boolean).join(' · '),
+            };
+          }),
+        }}
+      >
       <div className="panel report-summary" style={{ marginTop: 14 }}>
         <h2 style={{ fontSize: 20 }}>{survey.site_location}{survey.clients?.name ? <span className="client-badge" style={{ marginLeft: 10, verticalAlign: 'middle' }}>{survey.clients.name}</span> : null}</h2>
         <div className="kv-grid" style={{ marginTop: 12 }}>
@@ -141,7 +156,7 @@ export default async function ReportPage({ params }) {
           <div className="kv"><div className="k">Site Contact</div><div className="v">{survey.site_contact || '—'}</div></div>
           <div className="kv"><div className="k">Address</div><div className="v">{survey.address || '—'}</div></div>
           <div className="kv"><div className="k">Screen Areas</div><div className="v">{locationsWithUrls.length}</div></div>
-          <div className="kv internal-only"><div className="k">Engineer Days (est.)</div><div className="v">{survey.engineer_days || '—'}</div></div>
+          <div className="kv internal-only"><div className="k">Engineer Hours (est.)</div><div className="v">{survey.engineer_hours != null ? `${survey.engineer_hours} hr${Number(survey.engineer_hours) === 1 ? '' : 's'}` : '—'}</div></div>
           <div className="kv internal-only"><div className="k">Engineers Required</div><div className="v">{survey.engineer_count || '—'}</div></div>
         </div>
         {survey.additional_info && (
@@ -189,6 +204,7 @@ export default async function ReportPage({ params }) {
           </div>
         )}
       </div>
+      </ReportCoverPage>
 
       <SurveyApprovalPanel survey={survey} canEdit={canEdit} />
 

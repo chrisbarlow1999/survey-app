@@ -7,7 +7,7 @@ import { ProjectFilters } from '../../../../components/ProjectFilters';
 import { InstallCalendar } from '../../../../components/InstallCalendar';
 import { projectHref } from '../../../../lib/projectBackLink';
 import { screenTotals } from '../../../../lib/screenCount';
-import { engineerDays } from '../../../../lib/surveyScreens';
+import { engineerHours } from '../../../../lib/surveyScreens';
 import { buildMonthGrid, startOfWeek, addDays, startOfMonth, todayIso } from '../../../../lib/installCalendar';
 import { loadSectors, projectClientLabel } from '../../../../lib/sectors';
 import { loadEngineerCompanies, activeCompanyNames } from '../../../../lib/engineerCompanies';
@@ -114,7 +114,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
   if (ids.length) {
     const { data: surveys } = await supabase
       .from('surveys')
-      .select('id, project_id, project_site_id, engineer_days, engineer_count')
+      .select('id, project_id, project_site_id, engineer_hours, engineer_count')
       .in('project_id', ids)
       .is('archived_at', null);
     const seen = new Set();
@@ -130,7 +130,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
   }
 
   const viewScreens = screenTotals(rows);
-  const viewCrew = engineerDays(crewSurveys);
+  const viewCrew = engineerHours(crewSurveys);
   const unassigned = rows.filter((r) => !(r.install_company || '').trim()).length;
 
   function toggleHref(nextView) {
@@ -162,8 +162,8 @@ export default async function ProjectSchedulePage({ searchParams }) {
         </div>
         <div className="stat-tile">
           <div className="stat-value">{viewCrew.total}</div>
-          <div className="stat-label">Engineer-Days In View</div>
-          {/* Days × engineers, from the linked surveys. A survey missing either
+          <div className="stat-label">Engineer-Hours In View</div>
+          {/* Hours × engineers, from the linked surveys. A survey missing either
               number is left out rather than assumed to be one person. */}
           {viewCrew.incomplete > 0 && (
             <div className="stat-note">

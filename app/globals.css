@@ -961,20 +961,57 @@ a.attachment-name:hover{text-decoration:underline;}
      follows it. Every area then starts on its own page — see .report-loc
      above, which has no first-child exception precisely so nothing shares
      page 1 with the summary. */
-  .report-cover{
-    display:block !important;
-    padding:0 0 18px;margin-bottom:18px;
-    border:none !important;border-bottom:1px solid #E4E7EC !important;
-    box-shadow:none !important;
-  }
-  .report-cover-kicker{font-size:11px;color:var(--text-tertiary);margin-bottom:10px;}
-  .report-cover-site{font-family:var(--font-display);font-size:30px;font-weight:700;margin:0;line-height:1.15;letter-spacing:-0.02em;}
-  .report-cover-client{font-size:16px;color:var(--text-secondary);margin-top:8px;}
-  /* The panel repeats the site name and client on screen; on page 1 the band
-     above already carries them. */
-  .report-summary{border:none !important;padding:0 !important;margin-top:0 !important;box-shadow:none !important;}
-  .report-summary > h2{display:none !important;}
+  /* The cover (components/ReportCoverPage.js) fills page 1: brand header,
+     title, headline figures, the summary panel as a details card, a list of
+     what follows, and a footer pinned to the foot of the page. 262mm is the
+     A4 content height (297mm less 2×14mm margins) with a little slack, so the
+     footer lands at the bottom without spilling onto a page of its own. */
+  .report-first-page{display:flex;flex-direction:column;min-height:262mm;}
+  .report-first-page,.report-first-page *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 
+  .report-cover{display:block !important;border:none !important;box-shadow:none !important;}
+  .report-first-page .report-cover-brand{
+    display:flex;justify-content:space-between;align-items:baseline;
+    padding-bottom:9px;border-bottom:2px solid var(--accent);
+  }
+  .report-cover-wordmark{font-family:var(--font-display);font-weight:800;font-size:14px;letter-spacing:0.32em;color:var(--accent);}
+  .report-cover-doc{font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-tertiary);}
+
+  .report-cover-hero{padding:24mm 0 11mm;}
+  .report-cover-hero::before{content:"";display:block;width:44px;height:4px;border-radius:2px;background:var(--accent);margin-bottom:14px;}
+  .report-cover-kicker{font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;}
+  .report-cover-site{font-family:var(--font-display);font-size:38px;font-weight:700;margin:0;line-height:1.08;letter-spacing:-0.025em;color:var(--text);}
+  .report-cover-client{font-size:15px;color:var(--text-secondary);margin-top:10px;}
+
+  .report-cover-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10mm;}
+  .report-cover-stat{background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:10px;padding:13px 15px;}
+  .report-cover-stat-value{font-family:var(--font-display);font-size:21px;font-weight:700;line-height:1.1;color:var(--text);letter-spacing:-0.01em;}
+  .report-cover-stat-label{font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-secondary);margin-top:5px;}
+
+  .report-cover-section-label{font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-tertiary);margin:0 0 8px;}
+
+  /* The summary panel becomes the details card. Its heading repeats the site
+     name and client, which the cover already carries. */
+  .report-summary{
+    margin-top:0 !important;padding:14px 16px !important;
+    border:1px solid var(--border) !important;border-radius:10px !important;
+    background:#F8FAFC !important;box-shadow:none !important;
+  }
+  .report-summary > h2{display:none !important;}
+  .report-summary .kv-grid{margin-bottom:0 !important;}
+
+  .report-cover-contents{margin-top:10mm;break-inside:avoid;}
+  .report-cover-contents ol{list-style:none;margin:0;padding:0;border-top:1px solid var(--border);}
+  .report-cover-contents li{display:flex;align-items:baseline;gap:12px;padding:7px 2px;border-bottom:1px solid var(--border);}
+  .report-cover-contents-num{font-size:10.5px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;width:20px;flex-shrink:0;}
+  .report-cover-contents-title{font-size:12.5px;font-weight:600;color:var(--text);}
+  .report-cover-contents-detail{margin-left:auto;font-size:11px;color:var(--text-secondary);text-align:right;}
+
+  .report-first-page .report-cover-footer{
+    display:flex !important;justify-content:space-between;gap:12px;
+    margin-top:auto;padding-top:9px;border-top:1px solid var(--border);
+    font-size:9.5px;color:var(--text-tertiary);
+  }
   /* Nothing is hidden in an export — a PDF can't be expanded. */
   .collapsible-body{display:block !important;}
 

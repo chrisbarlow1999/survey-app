@@ -100,8 +100,23 @@ export default async function InstallationReportPage({ params }) {
         title="Install Confirmation"
         siteName={installation.site_location}
         clientName={installation.clients?.name}
-      />
-
+        stats={[
+          { label: 'Install date', value: formatDate(installation.install_date) },
+          { label: areasWithUrls.length === 1 ? 'Area' : 'Areas', value: areasWithUrls.length },
+          {
+            label: 'Screens installed',
+            value: `${areasWithUrls.reduce((n, a) => n + (a.screens || []).filter((s) => s.installed === 'Yes').length, 0)} of ${areasWithUrls.reduce((n, a) => n + (a.screens || []).length, 0)}`,
+          },
+        ]}
+        contents={{
+          heading: 'In this report',
+          items: areasWithUrls.map((a, i) => {
+            const n = (a.screens || []).length;
+            const done = (a.screens || []).filter((s) => s.installed === 'Yes').length;
+            return { title: a.area_name || `Area ${i + 1}`, detail: `${done} of ${n} screen${n === 1 ? '' : 's'} installed` };
+          }),
+        }}
+      >
       <div className="panel report-summary" style={{ marginTop: 14 }}>
         <h2 style={{ fontSize: 20 }}>{installation.site_location}{installation.clients?.name ? <span className="client-badge" style={{ marginLeft: 10, verticalAlign: 'middle' }}>{installation.clients.name}</span> : null}</h2>
         <div className="kv-grid" style={{ marginTop: 12 }}>
@@ -163,6 +178,7 @@ export default async function InstallationReportPage({ params }) {
           </div>
         )}
       </div>
+      </ReportCoverPage>
 
       <h2 className="section-heading" style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '20px 0 10px' }}>
         Installed Screens ({areasWithUrls.length} area{areasWithUrls.length !== 1 ? 's' : ''})

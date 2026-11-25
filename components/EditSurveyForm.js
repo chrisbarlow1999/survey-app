@@ -32,7 +32,7 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
     address: survey.address || '',
     siteContact: survey.site_contact || '',
     clientId: survey.client_id || '',
-    engDays: survey.engineer_days != null ? String(survey.engineer_days) : '',
+    engHours: survey.engineer_hours != null ? String(survey.engineer_hours) : '',
     engCount: survey.engineer_count != null ? String(survey.engineer_count) : '',
     additionalInfo: survey.additional_info || '',
   });
@@ -141,7 +141,9 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
         address: form.address,
         site_contact: form.siteContact,
         locations: uploadedAreas,
-        engineer_days: form.engDays || null,
+        engineer_hours: form.engHours || null,
+        // Superseded by engineer_hours (migration 051); cleared so it can't go stale.
+        engineer_days: null,
         engineer_count: form.engCount || null,
         additional_info: form.additionalInfo,
         attachments: savedAttachments,
@@ -242,7 +244,7 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
       <div className="panel">
         <h2>Install Resource Estimate</h2>
         <div className="field-row">
-          <div className="field"><label>Engineer Days (est.)</label><input type="number" min="0" value={form.engDays} onChange={(e) => setField('engDays', e.target.value)} /></div>
+          <div className="field"><label>Engineer Hours (est.)</label><input type="number" min="0" step="0.5" value={form.engHours} onChange={(e) => setField('engHours', e.target.value)} placeholder="Per engineer, e.g. 2" /></div>
           <div className="field"><label>Engineers Required</label><input type="number" min="0" value={form.engCount} onChange={(e) => setField('engCount', e.target.value)} /></div>
         </div>
       </div>

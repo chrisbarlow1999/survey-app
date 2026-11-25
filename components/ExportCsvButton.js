@@ -16,7 +16,7 @@ import { SECTOR_EMBED } from '../lib/sectors';
 
 const SURVEY_HEADERS = [
   'Site Name', 'Client', 'Engineer First', 'Engineer Last', 'Company', 'Phone', 'Survey Date',
-  'Address', 'Site Contact', 'Engineer Days', 'Engineers Required', 'Additional Info', 'Submitted At',
+  'Address', 'Site Contact', 'Engineer Hours', 'Engineers Required', 'Additional Info', 'Submitted At',
   'Area #', 'Area Name', 'Screen Size', 'Orientation', 'Mount Type', 'Measurements',
   'Screen #', 'Power Available', 'Data/4G Available', 'Notes',
 ];
@@ -46,7 +46,7 @@ function surveyRows(surveys, hw) {
     const base = [
       s.site_location || '', s.clients?.name || '', s.engineer_first || '', s.engineer_last || '', s.engineer_company || '',
       s.phone || '', s.survey_date ? formatDate(s.survey_date) : '', s.address || '', s.site_contact || '',
-      s.engineer_days ?? '', s.engineer_count ?? '', s.additional_info || '',
+      s.engineer_hours ?? '', s.engineer_count ?? '', s.additional_info || '',
       s.submitted_at ? formatDateTime(s.submitted_at) : '',
     ];
     const areas = s.locations || [];
@@ -171,7 +171,7 @@ const CONFIG = {
     searchColumns: ['site_location', 'engineer_first', 'engineer_last'],
     headers: SURVEY_HEADERS,
     buildRows: surveyRows,
-    select: 'site_location, engineer_first, engineer_last, engineer_company, phone, survey_date, address, site_contact, engineer_days, engineer_count, additional_info, submitted_at, locations, clients(name)',
+    select: 'site_location, engineer_first, engineer_last, engineer_company, phone, survey_date, address, site_contact, engineer_hours, engineer_count, additional_info, submitted_at, locations, clients(name)',
   },
   installations: {
     table: 'installations',

@@ -23,7 +23,7 @@ export default function NewSurveyPage() {
   const [form, setForm] = useState({
     engFirst: '', engLast: '', phone: '', date: '', siteLocation: '', address: '', siteContact: '', clientId: '',
     engCompany: '', engCompanyOther: '',
-    engDays: '', engCount: '', additionalInfo: '',
+    engHours: '', engCount: '', additionalInfo: '',
   });
   const [clients, setClients] = useState([]);
   const [areas, setAreas] = useState([freshArea()]);
@@ -53,7 +53,9 @@ export default function NewSurveyPage() {
   );
 
   function restoreDraft() {
-    setForm(draft.data.form);
+    // Merged over the blank form so a draft saved before a field existed (e.g.
+    // engHours, which replaced engDays) restores with that field empty.
+    setForm((f) => ({ ...f, ...draft.data.form }));
     setAreas((draft.data.areas || []).map(areaFromDraft));
     setDraft(null);
   }
@@ -156,7 +158,7 @@ export default function NewSurveyPage() {
         address: form.address,
         site_contact: form.siteContact,
         locations: uploadedAreas,
-        engineer_days: form.engDays || null,
+        engineer_hours: form.engHours || null,
         engineer_count: form.engCount || null,
         additional_info: form.additionalInfo,
       });
@@ -268,7 +270,7 @@ export default function NewSurveyPage() {
         <div className="panel">
           <h2>Install Resource Estimate</h2>
           <div className="field-row">
-            <div className="field"><label>Engineer Days (est.)</label><input type="number" min="0" value={form.engDays} onChange={(e) => setField('engDays', e.target.value)} /></div>
+            <div className="field"><label>Engineer Hours (est.)</label><input type="number" min="0" step="0.5" value={form.engHours} onChange={(e) => setField('engHours', e.target.value)} placeholder="Per engineer, e.g. 2" /></div>
             <div className="field"><label>Engineers Required</label><input type="number" min="0" value={form.engCount} onChange={(e) => setField('engCount', e.target.value)} /></div>
           </div>
         </div>

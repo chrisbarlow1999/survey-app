@@ -393,6 +393,15 @@ hand-synced copies.
     Internal, Index, B&B, ThinkPM and Airwave. Optional before deploying —
     until it's run, everything falls back to `lib/engineerCompanies.js`.
 
+58. Also run `supabase/051_engineer_hours.sql` — **before deploying the code**
+    (the survey form writes `engineer_hours`, so submitting a survey fails
+    until it exists). Survey resourcing moves from engineer days to engineer
+    hours per engineer; existing estimates are converted at 7.5 hours/day, and
+    a trigger converts anything still written in days. Cost sheets seed an
+    "Engineer hour" line (hours × engineers); the migration adds that price-list
+    item priced at the Engineer day rate ÷ 7.5, client rates included. The
+    schedule shows Engineer-Hours In View.
+
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
 and no markers, so **delete existing surveys and install confirmations** rather

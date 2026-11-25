@@ -92,8 +92,19 @@ export default async function VisitReportPage({ params }) {
         title="Engineer Visit"
         siteName={visit.site_location}
         clientName={visit.clients?.name}
-      />
-
+        stats={[
+          { label: 'Visit date', value: formatDate(visit.visit_date) },
+          { label: issuesWithUrls.length === 1 ? 'Issue' : 'Issues', value: issuesWithUrls.length },
+          { label: 'Resolved', value: `${issuesWithUrls.filter((x) => x.resolved === 'Yes').length} of ${issuesWithUrls.length}` },
+        ]}
+        contents={{
+          heading: 'In this report',
+          items: issuesWithUrls.map((x, i) => ({
+            title: x.title || `Issue ${i + 1}`,
+            detail: x.resolved === 'Yes' ? 'Resolved' : x.resolved === 'No' ? 'Not resolved' : '',
+          })),
+        }}
+      >
       <div className="panel report-summary" style={{ marginTop: 14 }}>
         <h2 style={{ fontSize: 20 }}>{visit.site_location}{visit.clients?.name ? <span className="client-badge" style={{ marginLeft: 10, verticalAlign: 'middle' }}>{visit.clients.name}</span> : null}</h2>
         <div className="kv-grid" style={{ marginTop: 12 }}>
@@ -155,6 +166,7 @@ export default async function VisitReportPage({ params }) {
           </div>
         )}
       </div>
+      </ReportCoverPage>
 
       <h2 className="section-heading" style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '20px 0 10px' }}>
         Issues ({issuesWithUrls.length})
