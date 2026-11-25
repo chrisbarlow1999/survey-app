@@ -6,7 +6,7 @@ import { createClient } from '../lib/supabaseClient';
 import { uploadAttachments, newAttachmentItems } from '../lib/uploadAttachments';
 import { logProjectActivity } from '../lib/logProjectActivity';
 import { formatBytes } from '../lib/formatBytes';
-import { describeAnswers, ramsLabel } from '../lib/intakeQuestions';
+import { describeRequestAnswers, describeAccessAnswers, ramsLabel } from '../lib/intakeQuestions';
 import { trackingPath } from '../lib/clientTracking';
 import { MAX_ATTACHMENT_BYTES } from './AttachmentPicker';
 import { CopyLinkField } from './CopyLinkField';
@@ -39,7 +39,9 @@ export function ProjectClientPanel({ project, ramsFiles, siteCount = 0, actorNam
     );
   }
 
-  const answers = describeAnswers(project.intake_answers);
+  // Budget / delivery / content (052) and, on older requests, site access.
+  const requestAnswers = describeRequestAnswers(project.intake_answers);
+  const answers = describeAccessAnswers(project.intake_answers);
   const storedRams = project.rams_files || [];
   const ramsMissing = ramsRequired === true && storedRams.length === 0;
   // Once a project has sites, access answers and RAMS are recorded per site
@@ -125,6 +127,20 @@ export function ProjectClientPanel({ project, ramsFiles, siteCount = 0, actorNam
           Preview as client
         </a>
       </div>
+
+      {requestAnswers.length > 0 && (
+        <div className="client-panel-section">
+          <div className="k">Delivery, budget &amp; content (from the request)</div>
+          <dl className="intake-answer-list">
+            {requestAnswers.map((a) => (
+              <div key={a.key} className="intake-answer" style={a.depth ? { paddingLeft: 14 * a.depth } : undefined}>
+                <dt>{a.label}</dt>
+                <dd style={{ whiteSpace: 'pre-wrap' }}>{a.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
 
       {answers.length > 0 && (
         <div className="client-panel-section">

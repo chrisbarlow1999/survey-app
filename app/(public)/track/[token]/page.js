@@ -4,7 +4,7 @@ import { use, useEffect, useState } from 'react';
 import { createClient } from '../../../../lib/supabaseClient';
 import { formatDate, formatDateTime } from '../../../../lib/formatDate';
 import { formatBytes } from '../../../../lib/formatBytes';
-import { describeAnswers, ramsLabel } from '../../../../lib/intakeQuestions';
+import { describeAnswers, describeRequestAnswers, describeAccessAnswers, ramsLabel } from '../../../../lib/intakeQuestions';
 import { CLIENT_STAGES, clientStage, trackingPath } from '../../../../lib/clientTracking';
 import { CopyLinkField } from '../../../../components/CopyLinkField';
 import { siteStatusClientLabel, siteStatusTone } from '../../../../lib/siteStatus';
@@ -93,7 +93,8 @@ export default function TrackingPage({ params }) {
   const doneTasks = tasks.filter((t) => t.completed_at).length;
   const pct = tasks.length ? Math.round((doneTasks / tasks.length) * 100) : null;
   const submission = project.submission || null;
-  const answers = describeAnswers(project.intake_answers);
+  const requestAnswers = describeRequestAnswers(project.intake_answers);
+  const answers = describeAccessAnswers(project.intake_answers);
   const ramsFiles = project.rams_files || [];
   const awaitingSurveys = (project.survey_approvals || []);
   const quotes = (project.quote_approvals || []);
@@ -432,6 +433,19 @@ export default function TrackingPage({ params }) {
             <div className="k">Details</div>
             <div className="v" style={{ whiteSpace: 'pre-wrap' }}>{submission.description}</div>
           </div>
+        )}
+        {requestAnswers.length > 0 && (
+          <>
+            <div className="k tracking-subhead">Delivery, budget &amp; content</div>
+            <dl className="intake-answer-list">
+              {requestAnswers.map((a) => (
+                <div key={a.key} className="intake-answer" style={a.depth ? { paddingLeft: 14 * a.depth } : undefined}>
+                  <dt>{a.label}</dt>
+                  <dd style={{ whiteSpace: 'pre-wrap' }}>{a.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </>
         )}
         {answers.length > 0 && (
           <>

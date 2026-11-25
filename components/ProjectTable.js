@@ -4,14 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
 import { formatDate } from '../lib/formatDate';
-import { PROJECT_STATUSES, statusLabel, statusTone } from '../lib/projectStatus';
+import { PROJECT_STATUSES, statusLabel } from '../lib/projectStatus';
+import { resolveProjectColumns, projectColumn } from '../lib/projectColumns';
 import { activeCompanyNames } from '../lib/engineerCompanies';
 import { useEngineerCompanies } from '../lib/useEngineerCompanies';
 import { resolveProjectSort } from '../lib/listQuery';
 import { screenTotals } from '../lib/screenCount';
 import { valueTotals, formatGBP } from '../lib/money';
 import { projectHref } from '../lib/projectBackLink';
-import { projectClientLabel } from '../lib/sectors';
 
 // The dense management read on the pipeline: one row per project, the columns
 // you'd want in a spreadsheet, sortable by clicking a heading, and a place to
@@ -69,11 +69,13 @@ function SortHeader({ label, col, params, basePath, className }) {
   );
 }
 
-export function ProjectTable({ projects, params, basePath, today, canEdit, owners = [], actorName }) {
+export function ProjectTable({ projects, params, basePath, today, canEdit, owners = [], actorName, columns }) {
   const supabase = createClient();
   const companies = useEngineerCompanies();
   const router = useRouter();
   const rows = projects || [];
+  // The person's chosen columns (Columns button, migration 053), in order.
+  const cols = resolveProjectColumns(columns).map(projectColumn);
   const pageScreens = screenTotals(rows);
   const pageValue = valueTotals(rows);
 
@@ -268,24 +270,14 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
                 </th>
               )}
               <SortHeader label="Project" col="title" params={params} basePath={basePath} />
-              <th>Client</th>
-              <th>Stage</th>
-              <th>Owner</th>
-              <SortHeader label="Screens" col="screens" params={params} basePath={basePath} className="num" />
-              <SortHeader label="Value" col="value" params={params} basePath={basePath} className="num" />
-              <SortHeader label="Install" col="install" params={params} basePath={basePath} />
-              <SortHeader label="Due" col="due" params={params} basePath={basePath} />
-              <th className="num">Tasks</th>
-              <SortHeader label="Raised" col="created" params={params} basePath={basePath} />
+              {cols.map((c) => (c.sort
+                ? <SortHeader key={c.id} label={c.label} col={c.sort} params={params} basePath={basePath} className={c.num ? 'num' : undefined} />
+                : <th key={c.id} className={c.num ? 'num' : undefined}>{c.label}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((p) => {
-              // Only chase a date on work that's still live — a completed job
-              // whose install date has passed is not late.
-              const live = !['complete', 'cancelled'].includes(p.status);
-              const dueLate = live && p.due_date && p.due_date < today;
-              const installLate = live && p.install_date && p.install_date < today;
               return (
                 <tr key={p.id} className={selected.has(p.id) ? 'picked' : ''}>
                   {canEdit && (
@@ -306,31 +298,13 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
                       </div>
                     )}
                   </td>
-                  <td>{projectClientLabel(p) || '—'}</td>
-                  <td>
-                    <span className={`status-pill status-${statusTone(p.status)}`}>{statusLabel(p.status)}</span>
-                  </td>
-                  <td>{p.owner?.full_name || p.owner?.email || <span className="table-muted">Unassigned</span>}</td>
-                  {/* Blank, not 0, when unestimated — see lib/screenCount.js. */}
-                  <td className="num">
-                    {p.screen_count == null ? <span className="table-muted">—</span> : p.screen_count}
-                  </td>
-                  {/* Blank, not £0, when unquoted — see lib/money.js. */}
-                  <td className="num">
-                    {p.value_gbp == null ? <span className="table-muted">—</span> : formatGBP(p.value_gbp)}
-                  </td>
-                  <td className={installLate ? 'table-late' : ''}>
-                    {p.install_date ? formatDate(p.install_date) : <span className="table-muted">—</span>}
-                  </td>
-                  <td className={dueLate ? 'table-late' : ''}>
-                    {p.due_date ? formatDate(p.due_date) : <span className="table-muted">—</span>}
-                  </td>
-                  <td className="num">
-                    {p.taskTotal > 0
-                      ? <span className={p.taskDone === p.taskTotal ? 'table-done' : ''}>{p.taskDone}/{p.taskTotal}</span>
-                      : <span className="table-muted">—</span>}
-                  </td>
-                  <td>{formatDate(p.created_at)}</td>
+                  {cols.map((c) => {
+                    // Only chase a date on work that's still live — a completed
+                    // job whose install date has passed is not late.
+                    const late = c.late && c.late(p, { today });
+                    const cls = [c.num ? 'num' : '', late ? 'table-late' : ''].filter(Boolean).join(' ');
+                    return <td key={c.id} className={cls || undefined}>{c.cell(p, { today })}</td>;
+                  })}
                 </tr>
               );
             })}
@@ -342,15 +316,21 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
                     filtered set is in the strip above — a footer total that
                     silently meant only 25 of 80 projects would be read as the
                     real number. */}
-                <td colSpan={canEdit ? 5 : 4}>This page ({rows.length} project{rows.length === 1 ? '' : 's'})</td>
-                <td className="num">{pageScreens.total}</td>
-                <td className="num">{pageValue.quoted > 0 ? formatGBP(pageValue.total) : '—'}</td>
-                <td colSpan={4}>
+                <td colSpan={canEdit ? 2 : 1}>
                   {[
+                    `This page (${rows.length} project${rows.length === 1 ? '' : 's'})`,
                     pageScreens.unestimated > 0 ? `${pageScreens.unestimated} without a screen estimate` : null,
                     pageValue.unquoted > 0 ? `${pageValue.unquoted} not quoted` : null,
                   ].filter(Boolean).join(' · ')}
                 </td>
+                {/* Totals sit under whichever columns carry them, wherever the
+                    person has put those columns. */}
+                {cols.map((c) => (
+                  <td key={c.id} className={c.num ? 'num' : undefined}>
+                    {c.id === 'screens' ? pageScreens.total : null}
+                    {c.id === 'value' ? (pageValue.quoted > 0 ? formatGBP(pageValue.total) : '—') : null}
+                  </td>
+                ))}
               </tr>
             </tfoot>
           )}

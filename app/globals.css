@@ -527,6 +527,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.55;}
 }
 .archived-badge{background:var(--surface-hover) !important;color:var(--text-secondary) !important;}
 .intake-badge{background:var(--caution-soft) !important;color:var(--caution) !important;}
+.content-badge{background:var(--success-soft) !important;color:var(--success) !important;}
 .archived-banner{
   background:var(--caution-soft);border:1px solid var(--caution-line);color:var(--caution);
   border-radius:var(--radius-sm);padding:12px 16px;font-size:13.5px;margin-bottom:16px;
@@ -592,6 +593,27 @@ a.attachment-name:hover{text-decoration:underline;}
 .client-row-name{font-family:var(--font-display);font-weight:600;font-size:14px;}
 .client-row-email{font-size:12.5px;color:var(--text-tertiary);margin-top:2px;}
 .sector-list{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;}
+/* ---------- Projects → Table: Columns picker ---------- */
+.column-picker{position:relative;}
+.column-picker-panel{
+  position:absolute;top:calc(100% + 6px);left:0;z-index:30;
+  width:320px;max-width:calc(100vw - 32px);max-height:70vh;overflow-y:auto;
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius);
+  box-shadow:var(--shadow-md);padding:14px;
+}
+.column-picker-heading{font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-tertiary);margin:10px 0 4px;}
+.column-picker-list{list-style:none;margin:0;padding:0;}
+.column-picker-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);}
+.column-picker-list label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;flex:1;}
+.column-picker-list input[type=checkbox]{width:auto;margin:0;}
+.column-picker-moves{display:flex;gap:2px;flex-shrink:0;}
+.column-picker-moves button{
+  background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);
+  width:26px;height:24px;cursor:pointer;font:inherit;font-size:12px;line-height:1;
+}
+.column-picker-moves button:disabled{opacity:0.35;cursor:default;}
+.column-picker-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px;}
+
 /* ---------- Templates ---------- */
 .template-fields{border:0;margin:0;padding:0;min-width:0;}
 .template-fields:disabled input,.template-fields:disabled select,.template-fields:disabled textarea{opacity:.8;cursor:default;}

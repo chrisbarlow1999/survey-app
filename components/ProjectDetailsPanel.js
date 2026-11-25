@@ -9,6 +9,7 @@ import { PROJECT_STATUSES, PROJECT_PRIORITIES, statusLabel, statusTone, priority
 import { screenLabel } from '../lib/screenCount';
 import { formatGBP } from '../lib/money';
 import { companyOptions } from '../lib/engineerCompanies';
+import { contentRequested } from '../lib/intakeQuestions';
 import { useEngineerCompanies } from '../lib/useEngineerCompanies';
 import { formatTimeRange } from '../lib/installCalendar';
 
@@ -340,6 +341,9 @@ export function ProjectDetailsPanel({ project, clients, sectors = [], owners, ac
         )}
         <span className={`status-pill status-${statusTone(values.status)}`}>{statusLabel(values.status)}</span>
         {project.source === 'intake' && <span className="client-badge intake-badge">Request</span>}
+        {/* From the request form (migration 052) — so it isn't buried in the answers. */}
+        {contentRequested(project.intake_answers) && <span className="client-badge content-badge">Content requested</span>}
+        {project.intake_answers?.delivery_different === 'Yes' && <span className="client-badge">Separate delivery address</span>}
       </div>
 
       {error && <p className="error-text">{error}</p>}

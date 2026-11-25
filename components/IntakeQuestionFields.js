@@ -31,6 +31,17 @@ export function IntakeQuestionFields({ questions, answers, onChange }) {
               onChange={(e) => onChange(q.key, e.target.value)}
             />
           )}
+          {q.type === 'date' && (
+            <input
+              id={`iq-${q.key}`}
+              type="date"
+              min="2000-01-01"
+              max="2100-12-31"
+              value={answers[q.key] || ''}
+              onChange={(e) => onChange(q.key, e.target.value)}
+              style={{ maxWidth: 220 }}
+            />
+          )}
           {q.type === 'textarea' && (
             <textarea
               id={`iq-${q.key}`}

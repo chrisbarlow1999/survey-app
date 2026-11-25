@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
-import { seedItemsFromSurvey, sheetTotals } from '../lib/costSheet';
+import { seedItemsFromSurvey, seedNotesFromSurvey, sheetTotals } from '../lib/costSheet';
 import { loadHardware } from '../lib/hardware';
 
 // Builds a quote from this survey and opens it.
@@ -48,6 +48,7 @@ export function CreateCostSheetButton({ survey, userId }) {
         client_id: survey.client_id,
         title: survey.site_location || null,
         items,
+        internal_notes: seedNotesFromSurvey(survey),
         total_cost: totals.cost,
         total_price: totals.price,
         created_by: userId || null,

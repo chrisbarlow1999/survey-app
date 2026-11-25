@@ -6,7 +6,8 @@ import { AttachmentPicker } from '../../../../components/AttachmentPicker';
 import { uploadAttachments, newAttachmentItems } from '../../../../lib/uploadAttachments';
 import { DraftBanner } from '../../../../components/DraftBanner';
 import { loadDraft, clearDraft, useDraftAutosave } from '../../../../lib/formDraft';
-import { INTAKE_QUESTIONS, answersToStore } from '../../../../lib/intakeQuestions';
+import { INTAKE_QUESTIONS, REQUEST_QUESTIONS, answersToStore } from '../../../../lib/intakeQuestions';
+import { IntakeQuestionFields } from '../../../../components/IntakeQuestionFields';
 import { YesNo } from '../../../../components/YesNo';
 import { CopyLinkField } from '../../../../components/CopyLinkField';
 import { SiteDetailsFields } from '../../../../components/SiteDetailsFields';
@@ -43,6 +44,8 @@ export default function ClientRequestPage({ params }) {
   // request is still stored as one site.
   const [multiSite, setMultiSite] = useState('No');
   const [sites, setSites] = useState(() => [newSite()]);
+  // Budget, delivery address and content — about the request as a whole.
+  const [requestAnswers, setRequestAnswers] = useState({});
   const [attachments, setAttachments] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -76,11 +79,12 @@ export default function ClientRequestPage({ params }) {
 
   useEffect(() => { setDraft(loadDraft(draftKey)); }, [draftKey]);
 
-  useDraftAutosave(draftKey, { form, multiSite, sites }, !done);
+  useDraftAutosave(draftKey, { form, multiSite, sites, requestAnswers }, !done);
 
   function restoreDraft() {
     const d = draft.data;
     setForm((f) => ({ ...f, ...d.form }));
+    if (d.requestAnswers && typeof d.requestAnswers === 'object') setRequestAnswers(d.requestAnswers);
     if (Array.isArray(d.sites) && d.sites.length) {
       setSites(d.sites.map((s) => ({ ...newSite(), ...s })));
       setMultiSite(d.multiSite === 'Yes' || d.sites.length > 1 ? 'Yes' : 'No');
@@ -171,6 +175,7 @@ export default function ClientRequestPage({ params }) {
           requester_email: form.requesterEmail,
           due_date: form.dueDate || null,
           attachments: savedAttachments,
+          answers: answersToStore(REQUEST_QUESTIONS, requestAnswers),
           sites: sites.map((s) => ({
             site_name: s.site_name,
             address: s.address,
@@ -310,7 +315,7 @@ export default function ClientRequestPage({ params }) {
           <div className="field-row">
             <div className="field" style={{ flex: '1 1 100%' }}>
               <label htmlFor="req-details">Details</label>
-              <textarea id="req-details" value={form.description} onChange={(e) => setField('description', e.target.value)} maxLength={5000} placeholder="Anything useful about the job as a whole — what the screens are for, any deadlines, budget." />
+              <textarea id="req-details" value={form.description} onChange={(e) => setField('description', e.target.value)} maxLength={5000} placeholder="Anything useful about the job as a whole — what the screens are for, any deadlines." />
             </div>
           </div>
           {withinSelfSurveyWindow(form.dueDate) && (
@@ -366,6 +371,15 @@ export default function ClientRequestPage({ params }) {
             </span>
           </div>
         )}
+
+        <div className="panel">
+          <h2>Delivery, Budget &amp; Content</h2>
+          <IntakeQuestionFields
+            questions={REQUEST_QUESTIONS}
+            answers={requestAnswers}
+            onChange={(key, value) => setRequestAnswers((a) => ({ ...a, [key]: value }))}
+          />
+        </div>
 
         <div className="panel">
           <h2>Your Details</h2>

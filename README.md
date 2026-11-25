@@ -397,10 +397,32 @@ hand-synced copies.
     (the survey form writes `engineer_hours`, so submitting a survey fails
     until it exists). Survey resourcing moves from engineer days to engineer
     hours per engineer; existing estimates are converted at 7.5 hours/day, and
-    a trigger converts anything still written in days. Cost sheets seed an
-    "Engineer hour" line (hours × engineers); the migration adds that price-list
-    item priced at the Engineer day rate ÷ 7.5, client rates included. The
-    schedule shows Engineer-Hours In View.
+    a trigger converts anything still written in days. The schedule shows
+    Engineer-Hours In View. (The "Engineer hour" price item this adds was
+    later superseded: cost sheets now price installation from the survey's
+    hours using the internal cost sheet's own lines — first hour, hours
+    thereafter, day rate, all for a 2-engineer crew — matched on the price-list
+    keys install_first_hour / install_extra_hour / install_day, and always add
+    a blank Delivery line (key delivery). See installationLines in
+    lib/costSheet.js.)
+
+59. Also run `supabase/052_request_answers.sql` — before deploying the
+    request-form change. The client request form gets a "Delivery, Budget &
+    Content" section: budget, whether the delivery address differs from the
+    install address (then the address, a contact name and phone), and whether
+    new content is needed (then what, and by when). Answers are saved in
+    `projects.intake_answers` and shown on the project's Client View panel and
+    the client's tracking page; the project header gets "Content requested" /
+    "Separate delivery address" tags. The questions are `REQUEST_QUESTIONS` in
+    `lib/intakeQuestions.js`. The migration only replaces
+    `submit_intake_request()` so it saves them — no new columns.
+
+60. Also run `supabase/053_user_preferences.sql` — per-account settings
+    (`user_preferences`, own row only). First use: the **Columns** button on
+    Projects → Table, where each person ticks and orders the columns they see
+    (list in `lib/projectColumns.js` — never rename a column id, saved choices
+    use it). Until it's run, the table shows its default columns and the
+    button is disabled.
 
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
