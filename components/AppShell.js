@@ -16,6 +16,16 @@ function isGroupActive(pathname, group) {
   return group.children.some((c) => isActive(pathname, c.href));
 }
 
+// Within a group, only the most specific match is highlighted — on
+// /projects/screens that's Screen Pipeline, not Projects as well.
+function activeChildHref(pathname, children) {
+  let best = null;
+  for (const c of children) {
+    if (isActive(pathname, c.href) && (!best || c.href.length > best.length)) best = c.href;
+  }
+  return best;
+}
+
 // Whichever group holds the page you're on starts open; the rest start closed.
 function initialExpandedGroups(navItems, pathname) {
   const initial = new Set();
@@ -95,6 +105,7 @@ export function AppShell({ navItems, footer, checkSession, children }) {
           {items.map((item) => {
             if (item.children) {
               const groupActive = isGroupActive(pathname, item);
+              const activeHref = activeChildHref(pathname, item.children);
               const expanded = expandedGroups.has(item.label);
               return (
                 <div className="sidebar-group" key={item.label}>
@@ -113,7 +124,7 @@ export function AppShell({ navItems, footer, checkSession, children }) {
                         <a
                           key={child.href}
                           href={child.href}
-                          className={isActive(pathname, child.href) ? 'active' : ''}
+                          className={child.href === activeHref ? 'active' : ''}
                           onClick={() => setOpen(false)}
                         >
                           {child.label}
