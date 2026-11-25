@@ -10,7 +10,7 @@ import { formatDateTime } from '../lib/formatDate';
 // where a client's details get edited; this is where you come to find a link to
 // send someone, see which forms are open, and check whether anything has
 // actually come through them.
-export function RequestLinkList({ rows }) {
+export function RequestLinkList({ rows, isSuperAdmin = false }) {
   const supabase = createClient();
   const router = useRouter();
   const [copiedId, setCopiedId] = useState(null);
@@ -58,7 +58,13 @@ export function RequestLinkList({ rows }) {
   }
 
   if (rows.length === 0) {
-    return <div className="empty-state">No clients yet — add one under Admin → Clients.</div>;
+    return (
+      <div className="empty-state">
+        {isSuperAdmin
+          ? 'No clients yet — add one under Admin → Clients.'
+          : 'You haven’t been given access to any clients yet — ask a super admin.'}
+      </div>
+    );
   }
 
   return (
@@ -76,7 +82,7 @@ export function RequestLinkList({ rows }) {
               </div>
             ) : (
               <div className="intake-link off" style={{ marginTop: 4 }}>
-                No link yet — set one under Admin → Clients.
+                {isSuperAdmin ? 'No link yet — set one under Admin → Clients.' : 'No link yet — a super admin can set one up.'}
               </div>
             )}
             <div className="client-row-email" style={{ marginTop: 4 }}>
@@ -93,7 +99,7 @@ export function RequestLinkList({ rows }) {
           {row.slug && (
             <a className="btn btn-ghost" href={`/request/${row.slug}`} target="_blank" rel="noreferrer">Preview</a>
           )}
-          {row.slug && (
+          {row.slug && isSuperAdmin && (
             <button
               className="btn btn-ghost"
               type="button"

@@ -90,6 +90,8 @@ survey, and the report a client receives still says so.
 - `/admin/clients` — add/rename/delete clients, set each one's notification inbox.
 - `/admin/request-links` — every client's request-form link in one place, with
   copy/preview buttons, an on/off switch, and how many requests each has brought in.
+  In the sidebar under Setup. Staff see the clients they've been granted and can
+  copy/preview links; only super admins see the on/off switch.
 - `/templates` (was `/admin/templates`, which now redirects) — the starting
   state for a project: a task checklist plus a default description, priority,
   owner and files. Optionally auto-applied to projects raised through a client
