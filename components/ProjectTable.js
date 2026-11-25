@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabaseClient';
 import { formatDate } from '../lib/formatDate';
 import { PROJECT_STATUSES, statusLabel, statusTone } from '../lib/projectStatus';
-import { ENGINEER_COMPANIES } from '../lib/engineerCompanies';
+import { activeCompanyNames } from '../lib/engineerCompanies';
+import { useEngineerCompanies } from '../lib/useEngineerCompanies';
 import { resolveProjectSort } from '../lib/listQuery';
 import { screenTotals } from '../lib/screenCount';
 import { valueTotals, formatGBP } from '../lib/money';
@@ -70,6 +71,7 @@ function SortHeader({ label, col, params, basePath, className }) {
 
 export function ProjectTable({ projects, params, basePath, today, canEdit, owners = [], actorName }) {
   const supabase = createClient();
+  const companies = useEngineerCompanies();
   const router = useRouter();
   const rows = projects || [];
   const pageScreens = screenTotals(rows);
@@ -211,7 +213,7 @@ export function ProjectTable({ projects, params, basePath, today, canEdit, owner
           >
             <option value="">Set install firm…</option>
             <option value="none">Nobody booked</option>
-            {ENGINEER_COMPANIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {activeCompanyNames(companies).map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
 
           <input

@@ -15,7 +15,8 @@ import {
 import { MAX_ATTACHMENT_BYTES } from './AttachmentPicker';
 import { SiteDetailsFields } from './SiteDetailsFields';
 import { SelfSurveyShare } from './SelfSurveyShare';
-import { COMPANY_OPTIONS, OTHER_COMPANY } from '../lib/engineerCompanies';
+import { companyOptions } from '../lib/engineerCompanies';
+import { useEngineerCompanies } from '../lib/useEngineerCompanies';
 import { formatTimeRange } from '../lib/installCalendar';
 
 function siteToForm(site) {
@@ -60,8 +61,8 @@ function hhmm(t) {
 // is what the schedule reads, so it's always on show rather than tucked inside
 // the site's details. Times only unlock once there's a day for them to sit on.
 function SiteBooking({ site, readOnly, busy, onSave }) {
-  const firms = COMPANY_OPTIONS.filter((c) => c !== OTHER_COMPANY);
-  const custom = site.install_company && !firms.includes(site.install_company);
+  const companies = useEngineerCompanies();
+  const firms = companyOptions(companies, site.install_company, { withOther: false });
   if (readOnly) {
     return (
       <div className="site-booking read-only">
@@ -92,8 +93,7 @@ function SiteBooking({ site, readOnly, busy, onSave }) {
         <span>Firm</span>
         <select value={site.install_company || ''} disabled={busy} onChange={(e) => onSave(site, 'install_company', e.target.value || null)}>
           <option value="">Nobody booked</option>
-          {custom && <option value={site.install_company}>{site.install_company}</option>}
-          {firms.map((c) => <option key={c} value={c}>{c}</option>)}
+          {firms.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </label>
       <label className="site-booking-field">

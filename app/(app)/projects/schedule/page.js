@@ -10,6 +10,7 @@ import { screenTotals } from '../../../../lib/screenCount';
 import { engineerDays } from '../../../../lib/surveyScreens';
 import { buildMonthGrid, startOfWeek, addDays, startOfMonth, todayIso } from '../../../../lib/installCalendar';
 import { loadSectors, projectClientLabel } from '../../../../lib/sectors';
+import { loadEngineerCompanies, activeCompanyNames } from '../../../../lib/engineerCompanies';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,7 +67,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
   // A site that's installed or cancelled is done, whatever the project says.
   const siteDone = (j) => j.site_status === 'installed' || j.site_status === 'cancelled';
 
-  const [{ data: booked, error }, { data: clients }, { data: owners }, { data: lateRows }, { data: unbookedRows }, sectors] =
+  const [{ data: booked, error }, { data: clients }, { data: owners }, { data: lateRows }, { data: unbookedRows }, sectors, companies] =
     await Promise.all([
       applyFilters(supabase.from('install_jobs').select(SELECT))
         .gte('install_date', range.from)
@@ -88,6 +89,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
         .is('install_date', null)
         .not('status', 'in', closed),
       loadSectors(supabase),
+      loadEngineerCompanies(supabase),
     ]);
 
   // Client and sector names by id: the view carries the ids only, since
@@ -224,6 +226,7 @@ export default async function ProjectSchedulePage({ searchParams }) {
           basePath="/projects/schedule"
           params={params}
           today={today}
+          firms={activeCompanyNames(companies)}
         />
       )}
     </main>

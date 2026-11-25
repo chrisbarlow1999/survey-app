@@ -23,6 +23,10 @@ const ACTION_LABELS = {
   update_hardware: 'edited hardware',
   retire_hardware: 'retired hardware',
   restore_hardware: 'restored hardware',
+  create_engineer_company: 'added engineer company',
+  rename_engineer_company: 'renamed engineer company to',
+  retire_engineer_company: 'retired engineer company',
+  restore_engineer_company: 'restored engineer company',
 };
 
 function describe(entry) {
@@ -31,7 +35,7 @@ function describe(entry) {
   let extra = '';
   if (entry.action === 'change_role' && d.from && d.to) extra = ` (${d.from} → ${d.to})`;
   if ((entry.action === 'grant_client_access' || entry.action === 'revoke_client_access') && d.client_name) extra = ` — ${d.client_name}`;
-  if ((entry.action === 'rename_client' || entry.action === 'rename_account' || entry.action === 'rename_sector' || entry.action === 'update_hardware') && d.from) extra = ` (was "${d.from}")`;
+  if ((entry.action === 'rename_client' || entry.action === 'rename_account' || entry.action === 'rename_sector' || entry.action === 'update_hardware' || entry.action === 'rename_engineer_company') && d.from) extra = ` (was "${d.from}")`;
   if (entry.action === 'create_account' && d.role) extra = ` (${d.role})`;
   return `${label} ${entry.target || ''}${extra}`;
 }

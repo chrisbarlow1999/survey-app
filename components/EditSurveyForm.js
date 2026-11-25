@@ -1,6 +1,7 @@
 'use client';
 
-import { COMPANY_OPTIONS, OTHER_COMPANY, resolveCompany, splitCompany } from '../lib/engineerCompanies';
+import { companyOptions, OTHER_COMPANY, resolveCompany, splitCompany } from '../lib/engineerCompanies';
+import { useEngineerCompanies } from '../lib/useEngineerCompanies';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -17,6 +18,7 @@ import { SiteNameField } from './SiteNameField';
 
 export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName }) {
   const supabase = createClient();
+  const companies = useEngineerCompanies();
   const router = useRouter();
 
   const [form, setForm] = useState({
@@ -182,7 +184,7 @@ export function EditSurveyForm({ survey, locationsWithUrls, clients, editorName 
             <label className="req">Engineering Company</label>
             <select value={form.engCompany} onChange={(e) => setField('engCompany', e.target.value)}>
               <option value="">Choose…</option>
-              {COMPANY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+              {companyOptions(companies, form.engCompany).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
           {form.engCompany === OTHER_COMPANY && (

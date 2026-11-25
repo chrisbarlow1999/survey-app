@@ -8,7 +8,8 @@ import { formatDate, formatDateTime } from '../lib/formatDate';
 import { PROJECT_STATUSES, PROJECT_PRIORITIES, statusLabel, statusTone, priorityLabel } from '../lib/projectStatus';
 import { screenLabel } from '../lib/screenCount';
 import { formatGBP } from '../lib/money';
-import { COMPANY_OPTIONS, OTHER_COMPANY } from '../lib/engineerCompanies';
+import { companyOptions } from '../lib/engineerCompanies';
+import { useEngineerCompanies } from '../lib/useEngineerCompanies';
 import { formatTimeRange } from '../lib/installCalendar';
 
 // Planner-style editing: change a field in place, it saves, no Edit button and
@@ -50,6 +51,7 @@ function InstallSummary({ sites }) {
 
 export function ProjectDetailsPanel({ project, clients, sectors = [], owners, actorName, canEdit, surveyedScreens = 0, sites = [] }) {
   const supabase = createClient();
+  const companies = useEngineerCompanies();
   const router = useRouter();
 
   const [values, setValues] = useState({
@@ -459,7 +461,7 @@ export function ProjectDetailsPanel({ project, clients, sectors = [], owners, ac
         <SelectField
           label="Install Firm"
           fieldKey="install_company"
-          options={[{ value: '', label: 'Nobody booked' }, ...COMPANY_OPTIONS.filter((c) => c !== OTHER_COMPANY).map((c) => ({ value: c, label: c }))]}
+          options={[{ value: '', label: 'Nobody booked' }, ...companyOptions(companies, values.install_company, { withOther: false })]}
           render={(v) => v || 'Nobody booked'}
         />
         {/* Only offered once there's a date: migration 041 refuses a time with

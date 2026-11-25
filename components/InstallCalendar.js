@@ -63,10 +63,10 @@ function JobBlock({ project, params, basePath, laneCls }) {
   );
 }
 
-export function InstallCalendar({ projects, view, anchor, basePath, params, today }) {
+export function InstallCalendar({ projects, view, anchor, basePath, params, today, firms }) {
   const rows = projects || [];
   const byDay = bucketByDayAndCompany(rows);
-  const lanes = lanesFor(rows);
+  const lanes = lanesFor(rows, firms);
 
   // ---------------- month ----------------
   if (view === 'month') {

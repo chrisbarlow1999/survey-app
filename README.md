@@ -383,6 +383,16 @@ hand-synced copies.
     only super admins can edit them) and lets each account read its own
     `profile_clients` rows. Until it's run, staff see templates read-only.
 
+57. Also run `supabase/050_engineer_companies.sql` — the engineering firms
+    move into `engineer_companies`, managed by super admins under Setup →
+    Engineer Companies (add, reorder, retire, rename). Used by the survey,
+    install and visit forms, the project/site install-team dropdowns, the
+    projects table's bulk "Set install firm" and the install calendar's rows.
+    Records still store the firm's name; `rename_engineer_company()` renames it
+    on every survey, install, visit and booking at once. Seeded with SCCI, EIT,
+    Internal, Index, B&B, ThinkPM and Airwave. Optional before deploying —
+    until it's run, everything falls back to `lib/engineerCompanies.js`.
+
 No migration is needed for the areas change — `locations` is a jsonb column and
 the shape inside it changed. Rows written before it will render with no screens
 and no markers, so **delete existing surveys and install confirmations** rather
